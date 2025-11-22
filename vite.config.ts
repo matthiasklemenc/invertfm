@@ -5,19 +5,20 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// IMPORTANT: GitHub Pages repo subfolder
+// GitHub Pages base URL for this repo
 const GITHUB_BASE = '/invertfm/';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
   return {
-    // Needed so all assets / links are resolved as /invertfm/...
+    // Ensures assets load correctly on GitHub Pages
     base: GITHUB_BASE,
 
-    // Build into "docs" so GitHub Pages can serve it from main/docs
+    // Build output to /docs so GitHub Pages can serve it
     build: {
       outDir: 'docs',
+      emptyOutDir: true, // (recommended) clears old files before building
     },
 
     server: {
@@ -28,16 +29,16 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
 
     define: {
-      // Safely expose your Gemini key (empty string if not set)
+      // Expose environment variables safely
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY ?? ''),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY ?? ''),
-      // Optional: expose the base path if you ever need it in code
+
+      // Optional utility if you want to access base path
       __APP_BASE__: JSON.stringify(GITHUB_BASE),
     },
 
     resolve: {
       alias: {
-        // Use the project root as "@"
         '@': path.resolve(__dirname, '.'),
       },
     },
