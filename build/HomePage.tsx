@@ -198,7 +198,7 @@ const HomePage: React.FC<{
                     <img
   alt="Jamendo Music"
   className="h-8 md:h-9"
-  src="/jamendo-logo.png"
+  src="jamendo-logo.png"
 />
 
                   </a>
