@@ -1,93 +1,143 @@
-// player-actions.ts
-// Trick system: rotations, flips, manuals, Natas spins, scoring (all delta-based)
+// player-actions.ts — handles input → action logic for the skate game
 
-export interface TrickState {
-  isManual: boolean;
-  manualTimer: number;
-  natas: boolean;
-  natasRotation: number;
-  natasSpeed: number;
-  flipRotation: number;
-  flipActive: boolean;
-  scoreBuffer: number;
+import { PhysicsBody } from "./physics";
+
+export interface PlayerActions {
+    jump(): void;
+    flip(): void;
+    startManual(direction: number): void;
+    stopManual(): void;
+    startNatas(): void;
+    stopNatas(): void;
+    boost(speed: number): void;
+
+    update(dt: number): void;
+    handleLanding(): void;
 }
 
-export interface PlayerActionsConfig {
-  manualDifficulty: number;    // score per second while manualing
-  natasRotationSpeed: number;  // radians per second
-  flipSpeed: number;           // radians per second
-  flipReward: number;          // points for completing a flip
-}
+export function createPlayerActions(body: PhysicsBody): PlayerActions {
 
-export class PlayerActions {
-  constructor(private config: PlayerActionsConfig) {}
+    // Jump variables
+    const JUMP_FORCE = -820;       // vertical boost
+    const AIR_JUMP_MOD = 0.65;     // optional (for future double-jump)
+    const FLIP_STRENGTH = 1.8;     // speed of board/spin rotation
+    const MANUAL_LEAN_SPEED = 1.8; // rotation lean in manual
+    const NATAS_SPIN_SPEED = 320;  // deg/sec
 
-  startManual(state: TrickState) {
-    if (!state.isManual) {
-      state.isManual = true;
-      state.manualTimer = 0;
-    }
-  }
+    let manualDirection = 0;       // -1 or +1
+    let landingCooldown = 0;
 
-  stopManual(state: TrickState) {
-    state.isManual = false;
-    const reward = Math.floor(state.manualTimer * this.config.manualDifficulty);
-    state.scoreBuffer += reward;
-    state.manualTimer = 0;
-    return reward;
-  }
+    //
+    // --------------------------------------------------------
+    //  ACTIONS
+    // --------------------------------------------------------
+    //
 
-  startNatasSpin(state: TrickState) {
-    if (!state.natas) {
-      state.natas = true;
-      state.natasSpeed = this.config.natasRotationSpeed;
-    }
-  }
-
-  stopNatasSpin(state: TrickState) {
-    state.natas = false;
-    const fullRotations = Math.floor(state.natasRotation / (Math.PI * 2));
-    const reward = fullRotations * 500;
-    state.scoreBuffer += reward;
-    state.natasRotation = 0;
-    state.natasSpeed = 0;
-    return reward;
-  }
-
-  startKickflip(state: TrickState) {
-    if (!state.flipActive) {
-      state.flipActive = true;
-      state.flipRotation = 0;
-    }
-  }
-
-  update(state: TrickState, delta: number) {
-    // Manual scoring
-    if (state.isManual) {
-      state.manualTimer += delta;
+    function jump() {
+        if (body.grounded) {
+            body.vy = JUMP_FORCE;
+            body.grounded = false;
+            landingCooldown = 0.12; // short delay before manual/grind re-activation
+        } else {
+            // Future double jump hook:
+            // body.vy = JUMP_FORCE * AIR_JUMP_MOD;
+        }
     }
 
-    // Natas spin rotation
-    if (state.natas) {
-      state.natasRotation += state.natasSpeed * delta;
+    function flip() {
+        if (!body.grounded) {
+            body.flipVelocity = FLIP_STRENGTH;
+        }
     }
 
-    // Flip rotation
-    if (state.flipActive) {
-      state.flipRotation += this.config.flipSpeed * delta;
+    function startManual(direction: number) {
+        if (!body.grounded) return;
+        if (landingCooldown > 0) return;
 
-      // Flip completed?
-      if (state.flipRotation >= Math.PI * 2) {
-        state.flipActive = false;
-        state.scoreBuffer += this.config.flipReward;
-        state.flipRotation = 0;
-      }
+        body.manual = true;
+        manualDirection = direction; // -1 back manual, +1 nose manual
     }
-  }
 
-  getBufferedScore(state: TrickState) {
-    const reward = state.scoreBuffer;
-    state.scoreBuffer = 0;
-    return reward;
-  }
+    function stopManual() {
+        body.manual = false;
+        manualDirection = 0;
+    }
+
+    function startNatas() {
+        if (!body.grounded) return;
+        if (landingCooldown > 0) return;
+
+        body.natas = true;
+        body.rotation = 0;
+    }
+
+    function stopNatas() {
+        body.natas = false;
+    }
+
+    function boost(speed: number) {
+        body.vx += speed;
+    }
+
+    //
+    // --------------------------------------------------------
+    //  UPDATE
+    // --------------------------------------------------------
+    //
+    function update(dt: number) {
+
+        // Cooldown until grinding / manual can activate again
+        if (landingCooldown > 0) {
+            landingCooldown -= dt;
+            if (landingCooldown < 0) landingCooldown = 0;
+        }
+
+        // MANUAL
+        if (body.manual) {
+            body.rotation += manualDirection * MANUAL_LEAN_SPEED;
+            if (body.rotation > 25) body.rotation = 25;
+            if (body.rotation < -25) body.rotation = -25;
+        }
+
+        // NATAS SPIN
+        if (body.natas) {
+            body.rotation += NATAS_SPIN_SPEED * dt;
+        }
+
+        // IN AIR
+        if (!body.grounded) {
+            // rotation from flipVelocity is handled in physics.ts
+        }
+    }
+
+    //
+    // --------------------------------------------------------
+    //  LANDING
+    // --------------------------------------------------------
+    //
+    function handleLanding() {
+        if (!body.grounded) return;
+
+        body.flipVelocity = 0;
+        body.rotation = 0;
+
+        // Stop special modes on landing
+        body.manual = false;
+        body.natas = false;
+        manualDirection = 0;
+
+        landingCooldown = 0.12;
+    }
+
+    return {
+        jump,
+        flip,
+        startManual,
+        stopManual,
+        startNatas,
+        stopNatas,
+        boost,
+        update,
+        handleLanding
+    };
 }

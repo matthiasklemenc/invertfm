@@ -1,401 +1,655 @@
+import React, { useEffect, useRef, useState } from "react";
 
-// SkateGamePage.tsx — FULL UPDATED VERSION with Pause System (canvas-only overlay)
+import { createGameLoop } from "./engine/game-loop";
+import { createPhysicsWorld, createPlayerPhysics, physicsUpdate } from "./engine/physics";
+import { createObstacleManager } from "./engine/obstacles";
+import { createCollectibleManager } from "./engine/collectibles";
+import { createPlayerActions } from "./engine/player-actions";
 
-import React, { useEffect, useRef, useState } from 'react';
+import { Renderer } from "./DrawingHelpers";
+import { SoundManager } from "./SoundManager";
 
-// Engine modules
-import { GameLoop } from './engine/game-loop';
-import { PhysicsEngine, PlayerPhysicsState } from './engine/physics';
-import { ObstacleSystem } from './engine/obstacles';
-import { CollectibleSystem } from './engine/collectibles';
-import { PlayerActions } from './engine/player-actions';
+// ------------------------------------------------------------
+//  MAIN GAME COMPONENT
+// ------------------------------------------------------------
+export default function SkateGamePage() {
 
-// Helpers & Components
-import { drawPlayer, drawObstacle, drawCollectible, clearCanvas } from './DrawingHelpers';
-import { SoundManager } from './SoundManager';
-import CharacterPreview from './CharacterPreview';
-import Carousel3D from './Carousel3D';
-import SkateboardGraphic from './SkateboardGraphic';
+    // Canvas references
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-const GAME_WIDTH = 900;
-const GAME_HEIGHT = 400;
+    // Loop + engine states
+    const loopRef = useRef<any>(null);
+    const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
 
-export default function SkateGamePage({ onClose }: { onClose?: () => void }) {
+    // Engine systems
+    const worldRef = useRef<any>(null);
+    const playerRef = useRef<any>(null);
+    const obstaclesRef = useRef<any>(null);
+    const collectiblesRef = useRef<any>(null);
+    const actionsRef = useRef<any>(null);
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const sound = useRef(new SoundManager());
+    // HUD states
+    const [score, setScore] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
 
-  const physics = useRef(
-    new PhysicsEngine({
-      gravity: 0.45,
-      jumpForce: -12,
-      maxFallSpeed: 18,
-      friction: 0.90,
-    })
-  );
+    // handle screen resize
+    const resizeCanvas = () => {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        if (!canvas || !container) return;
 
-  const obstacles = useRef(
-    new ObstacleSystem({
-      baseSpeed: 6,
-      spawnInterval: 2.0,
-      speedGrowthRate: 0.003,
-    })
-  );
+        const rect = container.getBoundingClientRect();
 
-  const collectibles = useRef(
-    new CollectibleSystem({
-      baseSpeed: 6,
-      spawnInterval: 1.8,
-      floatingTextDuration: 1.2,
-    })
-  );
+        canvas.width = rect.width * window.devicePixelRatio;
+        canvas.height = rect.height * window.devicePixelRatio;
 
-  const player = useRef<PlayerPhysicsState>({
-    x: 180,
-    y: 260,
-    vx: 0,
-    vy: 0,
-    onGround: true,
-    rotation: 0,
-    rotationSpeed: 0,
-  });
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            ctxRef.current = ctx;
+        }
+    };
 
-  const tricks = useRef({
-    isManual: false,
-    manualTimer: 0,
-    natas: false,
-    natasRotation: 0,
-    natasSpeed: 0,
-    flipRotation: 0,
-    flipActive: false,
-    scoreBuffer: 0,
-  });
+    // ------------------------------------------------------------
+    // INITIALIZATION
+    // ------------------------------------------------------------
+    const initGame = () => {
 
-  const actions = useRef(
-    new PlayerActions({
-      manualDifficulty: 120,
-      natasRotationSpeed: 3.8,
-      flipSpeed: 8.0,
-      flipReward: 400,
-    })
-  );
+        const canvas = canvasRef.current;
+        if (!canvas) return;
 
-  const loop = useRef<GameLoop | null>(null);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctxRef.current = ctx;
 
-  const [score, setScore] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
-  const [paused, setPaused] = useState(false);
+        // Create game loop
+        const loop = createGameLoop();
+        loopRef.current = loop;
 
-  // UPDATE
-  const update = (delta: number) => {
-    if (paused || gameOver) return;
+        // Create world + player
+        const world = createPhysicsWorld();
+        worldRef.current = world;
 
-    physics.current.simulate(player.current, delta);
-    obstacles.current.update(delta);
-    collectibles.current.update(delta);
-    actions.current.update(tricks.current, delta);
+        const player = createPlayerPhysics();
+        playerRef.current = player;
 
-    const hit = obstacles.current.checkCollision(
-      player.current.x, player.current.y, 60, 60
+        // Managers
+        const obstacles = createObstacleManager(world.groundY, canvas.width);
+        obstaclesRef.current = obstacles;
+
+        const collectibles = createCollectibleManager(world.groundY, canvas.width);
+        collectiblesRef.current = collectibles;
+
+        const actions = createPlayerActions(player);
+        actionsRef.current = actions;
+
+        // Sounds
+        SoundManager.init();
+
+        // Hook update callback
+        loop.onUpdate((dt: number) => {
+            if (isPaused) return;
+            updateGame(dt);
+        });
+
+        // Hook render callback
+        loop.onRender((ctx: CanvasRenderingContext2D) => {
+            if (!ctx) return;
+            renderGame(ctx);
+        });
+
+        loop.setContext(ctx);
+        loop.start();
+    };
+
+    // ------------------------------------------------------------
+    // GAME UPDATE
+    // ------------------------------------------------------------
+    const updateGame = (dt: number) => {
+        const player = playerRef.current;
+        const world = worldRef.current;
+        const obstacles = obstaclesRef.current;
+        const collectibles = collectiblesRef.current;
+        const actions = actionsRef.current;
+
+        // Physics
+        physicsUpdate(player, world, dt);
+
+        // Actions
+        actions.update(dt);
+
+        // Obstacles
+        obstacles.spawn(dt * 1000);
+        obstacles.update(dt);
+
+        // Collectibles
+        collectibles.spawn(dt);
+        collectibles.update(dt);
+
+        // Pickup scoring
+        const gained = collectibles.tryPickup(
+            player.x,
+            player.y - player.height / 2,
+            24
+        );
+
+        if (gained > 0) {
+            setScore((s) => s + gained);
+            SoundManager.play("coin");
+        }
+
+        // Death condition
+        const hit = obstacles.obstacles.some((o: any) => {
+            return o.type === "gap" && player.y > world.groundY + 40;
+        });
+
+        if (hit) {
+            resetGame();
+        }
+
+        // Landing checks
+        if (player.grounded) {
+            actions.handleLanding();
+        }
+    };
+
+    // ------------------------------------------------------------
+    // GAME RENDER
+    // ------------------------------------------------------------
+    const renderGame = (ctx: CanvasRenderingContext2D) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+
+        // Clear
+        ctx.clearRect(0, 0, w, h);
+
+        // Background
+        Renderer.drawParallaxCity(ctx, playerRef.current.x, w, h);
+
+        // Obstacles
+        for (const o of obstaclesRef.current.obstacles) {
+            Renderer.drawObstacle(ctx, o);
+        }
+
+        // Collectibles
+        for (const c of collectiblesRef.current.items) {
+            Renderer.drawCollectible(ctx, c);
+        }
+
+        // Shadow
+        Renderer.drawPlayerShadow(
+            ctx,
+            playerRef.current.x,
+            worldRef.current.groundY + 5,
+            1,
+            0.5
+        );
+
+        // Player
+        Renderer.drawPlayer(ctx, playerRef.current, 1);
+    };
+
+    // ------------------------------------------------------------
+    // RESET GAME
+    // ------------------------------------------------------------
+    const resetGame = () => {
+        setScore(0);
+        const player = createPlayerPhysics();
+        playerRef.current = player;
+        obstaclesRef.current.reset();
+        collectiblesRef.current.reset();
+    };
+
+
+    // ------------------------------------------------------------
+    // EFFECT — INITIAL MOUNT
+    // ------------------------------------------------------------
+    useEffect(() => {
+        resizeCanvas();
+        initGame();
+        window.addEventListener("resize", resizeCanvas);
+
+        return () => {
+            window.removeEventListener("resize", resizeCanvas);
+            loopRef.current?.stop();
+        };
+    }, []);
+
+    // ------------------------------------------------------------
+    // CONTROLS — Keyboard
+    // ------------------------------------------------------------
+    const handleKeyDown = (e: KeyboardEvent) => {
+        const actions = actionsRef.current;
+        if (!actions) return;
+
+        switch (e.code) {
+            case "Space":
+            case "ArrowUp":
+            case "KeyW":
+                actions.jump();
+                break;
+
+            case "KeyF": // flip trick
+            case "ArrowLeft":
+                actions.flip();
+                break;
+
+            case "KeyM": // manual
+                actions.startManual(-1);
+                break;
+
+            case "KeyN": // nose manual
+                actions.startManual(1);
+                break;
+
+            case "KeyS": // natas
+                actions.startNatas();
+                break;
+
+            case "Escape":
+                togglePause();
+                break;
+        }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+        const actions = actionsRef.current;
+        if (!actions) return;
+
+        switch (e.code) {
+            case "KeyM":
+            case "KeyN":
+                actions.stopManual();
+                break;
+
+            case "KeyS":
+                actions.stopNatas();
+                break;
+        }
+    };
+
+    // ------------------------------------------------------------
+    // CONTROLS — Touch (Mobile)
+    // ------------------------------------------------------------
+    const leftTouch  = useRef(false);
+    const rightTouch = useRef(false);
+    const jumpTouch  = useRef(false);
+
+    const handleTouchStart = (e: TouchEvent) => {
+        const touch = e.changedTouches[0];
+        const x = touch.clientX;
+        const screenW = window.innerWidth;
+
+        const actions = actionsRef.current;
+
+        // LEFT side = flip
+        if (x < screenW * 0.33) {
+            leftTouch.current = true;
+            actions.flip();
+            SoundManager.play("tap");
+            return;
+        }
+
+        // RIGHT side = jump
+        if (x > screenW * 0.66) {
+            rightTouch.current = true;
+            actions.jump();
+            SoundManager.play("jump");
+            return;
+        }
+
+        // CENTER = manual
+        jumpTouch.current = true;
+        actions.startManual(1);
+        SoundManager.play("tap");
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+        const actions = actionsRef.current;
+
+        if (leftTouch.current) {
+            leftTouch.current = false;
+        }
+
+        if (rightTouch.current) {
+            rightTouch.current = false;
+        }
+
+        if (jumpTouch.current) {
+            jumpTouch.current = false;
+            actions.stopManual();
+        }
+    };
+
+    // ------------------------------------------------------------
+    // CONTROL HOOK
+    // ------------------------------------------------------------
+    useEffect(() => {
+        // keyboard
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
+
+        // mobile touch
+        window.addEventListener("touchstart", handleTouchStart);
+        window.addEventListener("touchend", handleTouchEnd);
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("keyup", handleKeyUp);
+
+            window.removeEventListener("touchstart", handleTouchStart);
+            window.removeEventListener("touchend", handleTouchEnd);
+        };
+    }, []);
+
+    // ------------------------------------------------------------
+    // PAUSE / RESUME / EXIT LOGIC
+    // ------------------------------------------------------------
+    const togglePause = () => {
+        setIsPaused((p) => {
+            const newState = !p;
+
+            if (newState === true) {
+                SoundManager.pauseMusic?.();
+            } else {
+                SoundManager.resumeMusic?.();
+            }
+
+            return newState;
+        });
+    };
+
+    const exitGame = () => {
+        // reset state
+        loopRef.current?.stop();
+        SoundManager.stopAll?.();
+        window.history.back();   // navigate to previous page
+    };
+
+    // ------------------------------------------------------------
+    // PAUSE OVERLAY RENDERING
+    // ------------------------------------------------------------
+    const PauseOverlay = () => {
+        if (!isPaused) return null;
+
+        return (
+            <div
+                style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    width: "100%",
+                    height: "100%",
+                    backdropFilter: "blur(4px)",
+                    background: "rgba(0,0,0,0.45)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 30,
+                }}
+            >
+                <div
+                    style={{
+                        background: "rgba(30,30,30,0.9)",
+                        border: "2px solid #fff",
+                        borderRadius: 12,
+                        padding: "25px 40px",
+                        textAlign: "center",
+                        color: "white",
+                        fontSize: 28,
+                        width: "70%",
+                        maxWidth: 380,
+                    }}
+                >
+                    <div style={{ marginBottom: 20, fontWeight: "bold", fontSize: 32 }}>
+                        GAME PAUSED
+                    </div>
+
+                    <button
+                        onClick={togglePause}
+                        style={{
+                            width: "100%",
+                            marginBottom: 15,
+                            padding: "12px 0",
+                            background: "#ffffff",
+                            color: "#000",
+                            borderRadius: 8,
+                            fontSize: 22,
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                            border: "none",
+                        }}
+                    >
+                        Resume
+                    </button>
+
+                    <button
+                        onClick={resetGame}
+                        style={{
+                            width: "100%",
+                            marginBottom: 15,
+                            padding: "12px 0",
+                            background: "#ff9800",
+                            color: "#000",
+                            borderRadius: 8,
+                            fontSize: 22,
+                            cursor: "pointer",
+                            border: "none",
+                        }}
+                    >
+                        Restart
+                    </button>
+
+                    <button
+                        onClick={exitGame}
+                        style={{
+                            width: "100%",
+                            padding: "12px 0",
+                            background: "#ef233c",
+                            color: "white",
+                            borderRadius: 8,
+                            fontSize: 22,
+                            cursor: "pointer",
+                            border: "none",
+                        }}
+                    >
+                        Exit
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    // ------------------------------------------------------------
+    // HUD (Score + Pause button)
+    // ------------------------------------------------------------
+    const HUD = () => {
+        return (
+            <div
+                style={{
+                    position: "absolute",
+                    top: 10,
+                    left: 0,
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "0 15px",
+                    zIndex: 20,
+                    pointerEvents: "none",
+                }}
+            >
+                {/* Score */}
+                <div
+                    style={{
+                        color: "white",
+                        fontSize: 28,
+                        fontWeight: "bold",
+                        textShadow: "2px 2px 4px rgba(0,0,0,0.7)",
+                        pointerEvents: "none",
+                    }}
+                >
+                    {score}
+                </div>
+
+                {/* Pause button */}
+                <button
+                    onClick={togglePause}
+                    style={{
+                        pointerEvents: "auto",
+                        background: "rgba(255,255,255,0.85)",
+                        borderRadius: 10,
+                        padding: "8px 14px",
+                        fontSize: 20,
+                        fontWeight: "bold",
+                        border: "2px solid #000",
+                        cursor: "pointer",
+                    }}
+                >
+                    ||
+                </button>
+            </div>
+        );
+    };
+
+    // ------------------------------------------------------------
+    // FINAL JSX LAYOUT
+    // ------------------------------------------------------------
+    return (
+        <div
+            ref={containerRef}
+            style={{
+                position: "relative",
+                width: "100%",
+                height: "100vh",
+                overflow: "hidden",
+                background: "#111",
+                touchAction: "none",
+            }}
+        >
+            {/* Canvas */}
+            <canvas
+                ref={canvasRef}
+                style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "block",
+                    background: "#000",
+                }}
+            />
+
+            {/* HUD (Score + Pause Button) */}
+            <HUD />
+
+            {/* Pause Overlay */}
+            <PauseOverlay />
+
+            {/* Touch Control Regions (mobile) */}
+            <div
+                style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "33%",
+                    height: "100%",
+                    zIndex: 10,
+                    pointerEvents: "none",
+                }}
+            />
+
+            <div
+                style={{
+                    position: "absolute",
+                    top: 0,
+                    left: "33%",
+                    width: "34%",
+                    height: "100%",
+                    zIndex: 10,
+                    pointerEvents: "none",
+                }}
+            />
+
+            <div
+                style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: "33%",
+                    height: "100%",
+                    zIndex: 10,
+                    pointerEvents: "none",
+                }}
+            />
+        </div>
     );
-    if (hit) {
-      setGameOver(true);
-      sound.current.playCrash();
-      return;
-    }
+}
 
-    const collected = collectibles.current.checkCollision(
-      player.current.x, player.current.y, 60, 60
-    );
-    if (collected) {
-      const value = collectibles.current.collect(collected);
-      setScore(prev => prev + value);
-      sound.current.playCoin();
-    }
+// ------------------------------------------------------------
+//  FINAL CLEANUP & SAFETY HOOKS
+// ------------------------------------------------------------
 
-    const trickReward = actions.current.getBufferedScore(tricks.current);
-    if (trickReward > 0) {
-      setScore(prev => prev + trickReward);
-    }
+// Prevent mobile scrolling while touching controls
+useEffect(() => {
+    const preventScroll = (e: TouchEvent) => {
+        e.preventDefault();
+    };
 
-    if (player.current.y >= 260) {
-      player.current.y = 260;
-      player.current.vy = 0;
-      player.current.onGround = true;
-    } else {
-      player.current.onGround = false;
-    }
-  };
-
-  // RENDER
-  const render = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    clearCanvas(ctx, GAME_WIDTH, GAME_HEIGHT);
-
-    for (const o of obstacles.current.getObstacles()) {
-      drawObstacle(ctx, o);
-    }
-    for (const c of collectibles.current.getCollectibles()) {
-      drawCollectible(ctx, c);
-    }
-
-    drawPlayer(ctx, player.current, tricks.current);
-
-    for (const ft of collectibles.current.getFloatingTexts()) {
-      ctx.globalAlpha = ft.opacity;
-      ctx.fillStyle = "#ffd700";
-      ctx.font = "20px Arial";
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.globalAlpha = 1;
-    }
-  };
-
-  // EFFECT
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    canvas.width = GAME_WIDTH;
-    canvas.height = GAME_HEIGHT;
-
-    loop.current = new GameLoop({ update, render });
-    loop.current.start();
-
-    sound.current.playMusic();
+    document.body.style.overscrollBehavior = "none";
+    document.addEventListener("touchmove", preventScroll, { passive: false });
 
     return () => {
-      loop.current?.stop();
-      sound.current.stopMusic();
+        document.removeEventListener("touchmove", preventScroll);
+        document.body.style.overscrollBehavior = "";
     };
-  }, [gameOver, paused]);
+}, []);
 
-  // INPUT HANDLERS
-  const handleJump = () => {
-    if (paused || gameOver) return;
-    if (player.current.onGround) {
-      physics.current.jump(player.current);
-      sound.current.playJump();
-    }
-  };
-
-  const handleKickflip = () => {
-    if (!paused && !gameOver) {
-      actions.current.startKickflip(tricks.current);
-      sound.current.playFlip();
-    }
-  };
-
-  const handleManualStart = () => {
-    if (!paused && !gameOver) {
-      actions.current.startManual(tricks.current);
-    }
-  };
-
-  const handleManualStop = () => {
-    if (!paused && !gameOver) {
-      actions.current.stopManual(tricks.current);
-    }
-  };
-
-  const handleNatasStart = () => {
-    if (!paused && !gameOver) {
-      actions.current.startNatasSpin(tricks.current);
-      sound.current.playGrind();
-    }
-  };
-
-  const handleNatasStop = () => {
-    if (!paused && !gameOver) {
-      actions.current.stopNatasSpin(tricks.current);
-    }
-  };
-
-  const restartGame = () => {
-    setGameOver(false);
-    setScore(0);
-    setPaused(false);
-
-    sound.current.stopMusic();
-    sound.current.playMusic();
-
-    player.current = {
-      x: 180,
-      y: 260,
-      vx: 0,
-      vy: 0,
-      onGround: true,
-      rotation: 0,
-      rotationSpeed: 0,
+// Stabilize pixel ratio changes on mobile (e.g. zoom glitches)
+useEffect(() => {
+    const handlePixelRatio = () => {
+        resizeCanvas();
     };
 
-    tricks.current = {
-      isManual: false,
-      manualTimer: 0,
-      natas: false,
-      natasRotation: 0,
-      natasSpeed: 0,
-      flipRotation: 0,
-      flipActive: false,
-      scoreBuffer: 0,
+    window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+        .addEventListener("change", handlePixelRatio);
+
+    return () => {
+        window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+            .removeEventListener("change", handlePixelRatio);
+    };
+}, []);
+
+// Ensure audio unlock on mobile Safari
+useEffect(() => {
+    const handler = () => {
+        SoundManager.unlock?.();
+        window.removeEventListener("touchstart", handler);
+        window.removeEventListener("mousedown", handler);
     };
 
-    obstacles.current = new (obstacles.current.constructor as any)(obstacles.current.config);
-    collectibles.current = new (collectibles.current.constructor as any)(collectibles.current.config);
-  };
+    window.addEventListener("touchstart", handler);
+    window.addEventListener("mousedown", handler);
 
-  const togglePause = () => {
-    setPaused(prev => {
-      const newVal = !prev;
-      if (newVal) sound.current.stopMusic();
-      else sound.current.playMusic();
-      return newVal;
-    });
-  };
+    return () => {
+        window.removeEventListener("touchstart", handler);
+        window.removeEventListener("mousedown", handler);
+    };
+}, []);
 
-  return (
-    <div style={{ textAlign: "center", marginTop: "20px", position: "relative" }}>
-      <h1 style={{ color: "#fff", fontFamily: "Arial" }}>Skate Game</h1>
+// Extra: prevent ESC from breaking the canvas focus on desktop
+useEffect(() => {
+    const escHandler = (e: KeyboardEvent) => {
+        if (e.code === "Escape") {
+            e.preventDefault();
+        }
+    };
 
-      {/* Exit Game Button */}
-      {onClose && (
-        <button
-          onClick={onClose}
-          style={{
-            background: "#ff4444",
-            color: "white",
-            border: "none",
-            padding: "10px 20px",
-            fontSize: "18px",
-            borderRadius: "8px",
-            cursor: "pointer",
-            marginBottom: "10px",
-            marginRight: "10px"
-          }}
-        >
-          Exit Game
-        </button>
-      )}
+    window.addEventListener("keydown", escHandler);
 
-      {/* Pause Button */}
-      <button
-        onClick={togglePause}
-        style={{
-          background: paused ? "#33cc33" : "#ffaa00",
-          color: "black",
-          border: "none",
-          padding: "10px 20px",
-          fontSize: "18px",
-          borderRadius: "8px",
-          cursor: "pointer",
-          marginBottom: "20px"
-        }}
-      >
-        {paused ? "Resume" : "Pause"}
-      </button>
+    return () => {
+        window.removeEventListener("keydown", escHandler);
+    };
+}, []);
 
-      {/* Canvas wrapper */}
-      <div style={{ position: "relative", display: "inline-block" }}>
-        <canvas
-          ref={canvasRef}
-          style={{
-            border: "2px solid white",
-            background: "#111",
-            width: GAME_WIDTH,
-            height: GAME_HEIGHT,
-          }}
-        />
-
-        {/* Pause Overlay — canvas only */}
-        {paused && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: GAME_WIDTH,
-              height: GAME_HEIGHT,
-              background: "rgba(0,0,0,0.75)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "white",
-              zIndex: 10,
-            }}
-          >
-            <h2 style={{ marginBottom: "20px" }}>PAUSED</h2>
-
-            <button
-              onClick={togglePause}
-              style={{
-                padding: "10px 20px",
-                background: "#33cc33",
-                borderRadius: "6px",
-                border: "none",
-                fontSize: "20px",
-                marginBottom: "15px",
-                cursor: "pointer",
-              }}
-            >
-              Resume
-            </button>
-
-            {onClose && (
-              <button
-                onClick={onClose}
-                style={{
-                  padding: "10px 20px",
-                  background: "#ff4444",
-                  borderRadius: "6px",
-                  border: "none",
-                  fontSize: "20px",
-                  cursor: "pointer",
-                }}
-              >
-                Exit Game
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div style={{ color: "white", fontSize: "24px", marginTop: "20px" }}>
-        Score: {score}
-      </div>
-
-      {gameOver && (
-        <div style={{ marginBottom: "20px", color: "red", fontSize: "28px" }}>
-          GAME OVER
-          <br />
-          <button
-            onClick={restartGame}
-            style={{
-              marginTop: "10px",
-              padding: "10px 20px",
-              fontSize: "20px",
-              cursor: "pointer",
-            }}
-          >
-            Restart
-          </button>
-        </div>
-      )}
-
-      <div style={{ marginTop: "40px" }}>
-        <Carousel3D />
-      </div>
-
-      <div style={{ marginTop: "20px" }}>
-        <CharacterPreview />
-      </div>
-
-      <div style={{ marginTop: "30px" }}>
-        <SkateboardGraphic />
-      </div>
-    </div>
-  );
-}
