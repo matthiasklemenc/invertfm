@@ -1,180 +1,89 @@
-// obstacles.ts — clean rebuilt obstacle spawner + manager
+// obstacles.ts
+// ---------------------------------------------------------
+// Generates & manages obstacles in world space.
+// Works with ObstacleRenderer + physics engine.
+//
+// Exported:
+// - createObstacleManager()
+// - updateObstacles()
+// - generateObstacleIfNeeded()
+// ---------------------------------------------------------
 
 export interface Obstacle {
-    id: number;
-    type: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    speed: number;
-    state?: any;
-    animationFrame?: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: "ramp" | "rail" | "bus" | "box";
 }
 
 export interface ObstacleManager {
-    obstacles: Obstacle[];
-    spawn(time: number): void;
-    update(dt: number): void;
-    reset(): void;
+  obstacles: Obstacle[];
+  nextSpawnX: number;
+  groundY: number;
 }
 
-let OBSTACLE_ID = 0;
-
-//
-// ------------------------------------------------------------
-//  CONFIGURATION
-// ------------------------------------------------------------
-const SPAWN_INTERVAL_MIN = 900;  // ms
-const SPAWN_INTERVAL_MAX = 2400; // ms
-
-const SPEED = 480; // px/sec
-
-// Obstacle presets
-const TYPES = {
-    hydrant:   { w: 40, h: 75 },
-    rail:      { w: 250, h: 12 },
-    ledge:     { w: 180, h: 40 },
-    trash_bin: { w: 60, h: 70 },
-    green_bin: { w: 55, h: 55 },
-    police_car:{ w: 210, h: 65 },
-    ramp:      { w: 180, h: 100 },
-    stairs:    { w: 160, h: 60 },
-    gap:       { w: 120, h: 20 }
-};
-
-//
-// ------------------------------------------------------------
-//  CREATE MANAGER
-// ------------------------------------------------------------
-export function createObstacleManager(
-    groundY: number,
-    canvasWidth: number
-): ObstacleManager {
-
-    const manager: ObstacleManager = {
-        obstacles: [],
-        spawn,
-        update,
-        reset
-    };
-
-    let nextSpawnTime = randomInterval();
-    let elapsed = 0;
-
-    function reset() {
-        manager.obstacles = [];
-        nextSpawnTime = randomInterval();
-        elapsed = 0;
-        OBSTACLE_ID = 0;
-    }
-
-    //
-    // --------------------------------------------------------
-    //  SPAWN LOGIC
-    // --------------------------------------------------------
-    //
-    function spawn(time: number) {
-        elapsed += time;
-
-        if (elapsed < nextSpawnTime) return;
-
-        elapsed = 0;
-        nextSpawnTime = randomInterval();
-
-        // Choose obstacle type
-        const type = pickObstacleType();
-        const preset = TYPES[type];
-
-        const obstacle: Obstacle = {
-            id: OBSTACLE_ID++,
-            type,
-            x: canvasWidth + preset.w, // spawn outside screen
-            y: groundY,
-            width: preset.w,
-            height: preset.h,
-            speed: SPEED,
-            animationFrame: 0,
-            state: {}
-        };
-
-        // Hydrant gets a water timer
-        if (type === "hydrant") {
-            obstacle.state.waterTimer = 0;
-        }
-
-        manager.obstacles.push(obstacle);
-    }
-
-    //
-    // --------------------------------------------------------
-    //  UPDATE OBSTACLES
-    // --------------------------------------------------------
-    //
-    function update(dt: number) {
-
-        for (const o of manager.obstacles) {
-            o.x -= o.speed * dt;
-
-            // Update animation
-            if (o.animationFrame !== undefined) {
-                o.animationFrame += 1;
-            }
-
-            // Hydrant water spray timer
-            if (o.type === "hydrant") {
-                o.state.waterTimer += 1;
-            }
-        }
-
-        // Remove off-screen obstacles
-        manager.obstacles = manager.obstacles.filter(o => o.x + o.width > -80);
-    }
-
-    return manager;
+export function createObstacleManager(groundY: number): ObstacleManager {
+  return {
+    obstacles: [],
+    nextSpawnX: 800,   // first spawn point
+    groundY,
+  };
 }
 
-//
-// ------------------------------------------------------------
-//  HELPERS
-// ------------------------------------------------------------
-function randomInterval() {
-    return Math.random() * (SPAWN_INTERVAL_MAX - SPAWN_INTERVAL_MIN) + SPAWN_INTERVAL_MIN;
+// ---------------------------------------------------------
+// SPAWN LOGIC
+// ---------------------------------------------------------
+
+function spawnRandomObstacle(manager: ObstacleManager) {
+  const y = manager.groundY;
+
+  const types: Array<Obstacle["type"]> = ["ramp", "rail", "bus", "box"];
+  const type = types[Math.floor(Math.random() * types.length)];
+
+  let width = 80;
+  let height = 40;
+
+  if (type === "ramp") { width = 90; height = 60; }
+  if (type === "rail") { width = 130; height = 10; }
+  if (type === "bus")  { width = 220; height = 90; }
+  if (type === "box")  { width = 70; height = 40; }
+
+  manager.obstacles.push({
+    x: manager.nextSpawnX,
+    y,
+    width,
+    height,
+    type,
+  });
+
+  // next spawn (random distance)
+  manager.nextSpawnX += 500 + Math.random() * 600;
 }
 
-function pickObstacleType(): keyof typeof TYPES {
+// ---------------------------------------------------------
+// UPDATE (called every frame)
+// ---------------------------------------------------------
 
-    const list = [
-        "hydrant",
-        "trash_bin",
-        "police_car",
-        "rail",
-        "ledge",
-        "green_bin",
-        "stairs",
-        "ramp",
-        "gap"
-    ];
+export function updateObstacles(
+  manager: ObstacleManager,
+  scrollX: number
+) {
+  // Remove obstacles far left of screen
+  manager.obstacles = manager.obstacles.filter(
+    obs => obs.x > scrollX - 400
+  );
+}
 
-    // Slight weight: more hydrants, fewer gaps
-    const weights = {
-        hydrant:   2,
-        trash_bin: 2,
-        police_car:2,
-        rail:      1,
-        ledge:     1,
-        green_bin: 1,
-        stairs:    1,
-        ramp:      1,
-        gap:       0.5
-    };
+// ---------------------------------------------------------
+// CHECK IF NEW OBSTACLE SHOULD SPAWN
+// ---------------------------------------------------------
 
-    const expanded: string[] = [];
-    for (const t of list) {
-        for (let i = 0; i < (weights as any)[t]; i++) {
-            expanded.push(t);
-        }
-    }
-
-    return expanded[Math.floor(Math.random() * expanded.length)] as any;
+export function generateObstacleIfNeeded(
+  manager: ObstacleManager,
+  scrollX: number
+) {
+  if (scrollX + 1200 > manager.nextSpawnX) {
+    spawnRandomObstacle(manager);
+  }
 }

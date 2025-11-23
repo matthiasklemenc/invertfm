@@ -1,83 +1,82 @@
-// game-loop.ts — rebuilt with stable delta time + fixed timing on all devices
+// ---------------------------------------------------------
+// game-loop.ts (Clean, class-based renderer version)
+// ---------------------------------------------------------
 
-export interface GameLoopAPI {
-    start(): void;
-    stop(): void;
-    onUpdate(callback: (dt: number) => void): void;
-    onRender(callback: (ctx: CanvasRenderingContext2D) => void): void;
-    setContext(ctx: CanvasRenderingContext2D): void;
+import { updatePhysics, PhysicsState, createPhysicsState } from "./physics";
+import { createPlayerInput } from "./player-actions";
+import { createObstacleManager } from "./obstacles";
+import { createCollectibleManager } from "./collectibles";
+
+// New class-based renderers
+import { BackgroundRenderer } from "./rendering/BackgroundRenderer";
+import { GroundRenderer } from "./rendering/GroundRenderer";
+import { ObstacleRenderer } from "./rendering/ObstacleRenderer";
+import { CoinRenderer } from "./rendering/CoinRenderer";
+import { PlayerRenderer, PlayerSpriteSet } from "./rendering/PlayerRenderer";
+
+export type GameLoopStop = () => void;
+
+// The main game loop constructor
+export function startGameLoop(callback: (dt: number) => void): GameLoopStop {
+  let lastTime = performance.now();
+  let running = true;
+
+  function loop(now: number) {
+    if (!running) return;
+
+    const dt = (now - lastTime) / 1000; // delta time in seconds
+    lastTime = now;
+
+    callback(dt);
+
+    requestAnimationFrame(loop);
+  }
+
+  requestAnimationFrame(loop);
+
+  return () => {
+    running = false;
+  };
 }
 
-export function createGameLoop(): GameLoopAPI {
+// ---------------------------------------------------------
+// FULL GAME ENGINE BOOTSTRAP (USED BY SkateGamePage.tsx)
+// ---------------------------------------------------------
 
-    let lastTime = 0;
-    let running = false;
+export function createGameEngine(
+  canvas: HTMLCanvasElement,
+  sprites: PlayerSpriteSet
+) {
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
-    let updateCallback: (dt: number) => void = () => {};
-    let renderCallback: (ctx: CanvasRenderingContext2D) => void = () => {};
-    let ctx: CanvasRenderingContext2D | null = null;
+  // Logic groups
+  const physics = createPhysicsState();
+  const input = createPlayerInput(canvas);
+  const obstacles = createObstacleManager();
+  const coins = createCollectibleManager();
 
-    // Fixed timestep for physics stability (60 FPS base)
-    const FIXED_STEP = 1000 / 60;
+  // Renderers
+  const backgroundRenderer = new BackgroundRenderer();
+  const groundRenderer = new GroundRenderer();
+  const obstacleRenderer = new ObstacleRenderer();
+  const coinRenderer = new CoinRenderer();
+  const playerRenderer = new PlayerRenderer(sprites);
 
-    // Accumulator for fixed-step physics updates
-    let accumulator = 0;
+  function update(dt: number) {
+    // Update game logic
+    updatePhysics(physics, dt, input);
+    obstacles.update(dt, physics.playerX);
+    coins.update(dt, physics.playerX);
 
-    // Safety to prevent delta spikes on mobile (tab switching etc.)
-    const MAX_DT = 1000 / 15; // never allow > ~66ms
+    // Drawing
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    function frame(time: number) {
-        if (!running) return;
+    backgroundRenderer.render(ctx, physics);
+    groundRenderer.render(ctx, physics);
+    obstacleRenderer.render(ctx, obstacles.list);
+    coinRenderer.render(ctx, coins.list);
+    playerRenderer.render(ctx, physics, input);
+  }
 
-        requestAnimationFrame(frame);
-
-        if (!lastTime) {
-            lastTime = time;
-            return;
-        }
-
-        let dt = time - lastTime;
-        lastTime = time;
-
-        // Clamp DT to prevent physics explosions
-        if (dt > MAX_DT) dt = MAX_DT;
-
-        accumulator += dt;
-
-        // Run physics at fixed framerate
-        while (accumulator >= FIXED_STEP) {
-            updateCallback(FIXED_STEP / 1000); // convert to seconds
-            accumulator -= FIXED_STEP;
-        }
-
-        // Render at full frame rate
-        if (ctx) renderCallback(ctx);
-    }
-
-    return {
-
-        start() {
-            if (running) return;
-            running = true;
-            lastTime = 0;
-            accumulator = 0;
-            requestAnimationFrame(frame);
-        },
-
-        stop() {
-            running = false;
-        },
-
-        onUpdate(cb: (dt: number) => void) {
-            updateCallback = cb;
-        },
-
-        onRender(cb: (ctx: CanvasRenderingContext2D) => void) {
-            renderCallback = cb;
-        },
-
-        setContext(c: CanvasRenderingContext2D) {
-            ctx = c;
-        }
-    };
+  return { update, physics, input, obstacles, coins };
 }

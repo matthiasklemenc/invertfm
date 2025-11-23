@@ -1,233 +1,157 @@
-// physics.ts — clean rebuilt physics engine for the skate game
+// physics.ts
+// ---------------------------------------------------------
+// Core physics engine used by game-loop.ts
+// Handles:
+// - horizontal speed
+// - gravity
+// - jumping + jump charge
+// - landing
+// - rotation / fakie detection
+// ---------------------------------------------------------
 
-export interface PhysicsBody {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
+export interface PhysicsState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
 
-    width: number;
-    height: number;
+  isGrounded: boolean;
+  isFakie: boolean;
 
-    grounded: boolean;
-    gravityScale: number;
+  angle: number;          // rotation angle
+  angularVelocity: number;
 
-    // Special tricks
-    grinding: boolean;
-    natas: boolean;
-    manual: boolean;
+  jumpCharging: boolean;
+  jumpChargeTime: number;
 
-    rotation: number;      // for flips
-    flipVelocity: number;  // flips per second
+  speed: number;
+  groundY: number;        // world Y of ground
 }
 
-export interface PhysicsWorld {
-    groundY: number;
-    gravity: number;
-    friction: number;
-    airResistance: number;
+export function createPhysicsState(): PhysicsState {
+  return {
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+
+    isGrounded: true,
+    isFakie: false,
+
+    angle: 0,
+    angularVelocity: 0,
+
+    jumpCharging: false,
+    jumpChargeTime: 0,
+
+    speed: 4,        // old game default cruising speed
+    groundY: 0,
+  };
 }
 
-export function createPhysicsWorld(): PhysicsWorld {
-    return {
-        groundY: 460,            // should be overridden by level
-        gravity: 1800,           // px/sec²
-        friction: 0.82,
-        airResistance: 0.99
-    };
+// ---------------------------------------------------------
+// HANDLE INPUT (CALLED FROM SkateGamePage.tsx)
+// ---------------------------------------------------------
+
+export function startJumpCharge(state: PhysicsState) {
+  if (state.isGrounded) state.jumpCharging = true;
 }
 
-//
-// ---------------------------------------------------------
-//  UPDATE PHYSICS (dt is seconds, not ms)
-// ---------------------------------------------------------
-export function physicsUpdate(body: PhysicsBody, world: PhysicsWorld, dt: number) {
+export function releaseJump(state: PhysicsState) {
+  if (!state.isGrounded) return;
 
-    // -----------------------------------------
-    // APPLY GRAVITY
-    // -----------------------------------------
-    if (!body.grounded) {
-        body.vy += world.gravity * body.gravityScale * dt;
-    }
+  state.jumpCharging = false;
 
-    // -----------------------------------------
-    // UPDATE POSITION
-    // -----------------------------------------
-    body.x += body.vx * dt;
-    body.y += body.vy * dt;
+  // Charge capped at 350ms
+  const charge = Math.min(state.jumpChargeTime, 350);
 
-    // -----------------------------------------
-    // FLIP ROTATION (while in the air)
-    // -----------------------------------------
-    if (!body.grounded) {
-        body.rotation += body.flipVelocity * dt * 360;
-        if (body.rotation >= 360) body.rotation -= 360;
-        if (body.rotation < 0) body.rotation += 360;
-    }
+  // Convert charge → jump power
+  const jumpPower = 220 + charge * 0.6;
 
-    // -----------------------------------------
-    // GROUND COLLISION
-    // -----------------------------------------
-    const halfH = body.height / 2;
+  state.vy = -jumpPower;
+  state.isGrounded = false;
 
-    if (body.y + halfH >= world.groundY) {
-        body.y = world.groundY - halfH;
-        body.vy = 0;
-        body.grounded = true;
-    } else {
-        body.grounded = false;
-    }
-
-    // -----------------------------------------
-    // FRICTION (only grounded)
-    // -----------------------------------------
-    if (body.grounded) {
-        body.vx *= world.friction;
-    } else {
-        body.vx *= world.airResistance;
-    }
-
-    // -----------------------------------------
-    // SPECIAL STATES
-    // -----------------------------------------
-
-    // MANUAL
-    if (body.manual && body.grounded) {
-        body.vy = 0;
-        body.vx *= 1.02; // tiny boost
-    }
-
-    // GRINDING (rail)
-    if (body.grinding) {
-        body.vy = 0;
-        body.vx *= 1.03; // spark acceleration
-    }
-
-    // NATAS SPIN (just keeps rotation alive)
-    if (body.natas) {
-        body.rotation += 240 * dt;
-    }
+  // Slight up speed boost
+  state.vx = 0;
+  state.speed += 0.1;
 }
 
-//
 // ---------------------------------------------------------
-//  CREATE PLAYER BODY
+// MAIN PHYSICS UPDATE
 // ---------------------------------------------------------
-export function createPlayerPhysics(): PhysicsBody {
-    return {
-        x: 180,
-        y: 460,
-        vx: 0,
-        vy: 0,
 
-        width: 80,
-        height: 110,
+export function updatePhysics(state: PhysicsState, dt: number) {
+  const GRAVITY = 900;
+  const MAX_FALL = 1600;
 
-        grounded: true,
-        gravityScale: 1,
+  // -------------------------------------------------------
+  // Jump charge while button held
+  // -------------------------------------------------------
 
-        grinding: false,
-        manual: false,
-        natas: false,
+  if (state.jumpCharging) {
+    state.jumpChargeTime += dt * 1000;
+    if (state.jumpChargeTime > 350) state.jumpChargeTime = 350;
+  } else {
+    state.jumpChargeTime = 0;
+  }
 
-        rotation: 0,
-        flipVelocity: 0
-    };
-}
+  // -------------------------------------------------------
+  // Apply gravity
+  // -------------------------------------------------------
 
-//
-// ---------------------------------------------------------
-//  SIMPLE BOX COLLISION FOR OBSTACLES
-// ---------------------------------------------------------
-export function aabbCollision(
-    ax: number, ay: number, aw: number, ah: number,
-    bx: number, by: number, bw: number, bh: number
-): boolean {
-    return (
-        ax < bx + bw &&
-        ax + aw > bx &&
-        ay < by + bh &&
-        ay + ah > by
-    );
-}
+  if (!state.isGrounded) {
+    state.vy += GRAVITY * dt;
+    if (state.vy > MAX_FALL) state.vy = MAX_FALL;
+  }
 
-//
-// ---------------------------------------------------------
-//  COLLISION WITH OBSTACLES
-// ---------------------------------------------------------
-export interface Obstacle {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    type: string;
-}
+  // -------------------------------------------------------
+  // Vertical movement
+  // -------------------------------------------------------
 
-export function handleObstacleCollisions(
-    body: PhysicsBody,
-    obstacles: Obstacle[]
-): boolean {
-    const playerBox = {
-        x: body.x - body.width / 2,
-        y: body.y - body.height / 2,
-        w: body.width,
-        h: body.height
-    };
+  state.y += state.vy * dt;
 
-    for (const o of obstacles) {
+  // -------------------------------------------------------
+  // LANDING
+  // -------------------------------------------------------
 
-        const hit = aabbCollision(
-            playerBox.x, playerBox.y, playerBox.w, playerBox.h,
-            o.x, o.y - o.height, o.width, o.height
-        );
-
-        if (!hit) continue;
-
-        switch (o.type) {
-
-            // -------------------------------------
-            // RAIL — grinding mode
-            // -------------------------------------
-            case "rail":
-                body.grinding = true;
-                body.grounded = true;
-                body.y = o.y - o.height - (body.height / 2);
-                body.vy = 0;
-                return false;
-
-            // -------------------------------------
-            // LEDGE / RAMP — allow land on top
-            // -------------------------------------
-            case "ledge":
-            case "ramp":
-                body.y = o.y - o.height - (body.height / 2);
-                body.vy = 0;
-                body.grounded = true;
-                return false;
-
-            // -------------------------------------
-            // STAIRS — basically flat collision
-            // -------------------------------------
-            case "stairs":
-                body.y = o.y - o.height - (body.height / 2);
-                body.vy = 0;
-                body.grounded = true;
-                return false;
-
-            // -------------------------------------
-            // GAP — instant death
-            // -------------------------------------
-            case "gap":
-                return true;
-
-            // -------------------------------------
-            // DEFAULT — kill obstacle (hydrant etc.)
-            // -------------------------------------
-            default:
-                return true;
-        }
+  if (state.y >= state.groundY) {
+    state.y = state.groundY;
+    state.vy = 0;
+    if (!state.isGrounded) {
+      // landing impact reduces angular velocity
+      state.angularVelocity *= 0.2;
     }
+    state.isGrounded = true;
+  }
 
-    body.grinding = false;
-    return false; // no death
+  // -------------------------------------------------------
+  // ROTATION / FAKIE STATE
+  // -------------------------------------------------------
+
+  state.angle += state.angularVelocity * dt;
+
+  // Normalize angle
+  const fullTurn = Math.PI * 2;
+  if (state.angle > fullTurn) state.angle -= fullTurn;
+  if (state.angle < 0) state.angle += fullTurn;
+
+  // Detect 180° land = fakie
+  // 0 rad = facing right
+  // PI rad = facing left (fakie)
+  if (state.isGrounded) {
+    state.isFakie = state.angle > Math.PI * 0.5 && state.angle < Math.PI * 1.5;
+  }
+
+  // -------------------------------------------------------
+  // SPEED CONTROL
+  // -------------------------------------------------------
+
+  // Slight natural speed decay
+  state.speed *= 0.999;
+
+  if (state.speed < 3.5) state.speed = 3.5;
+  if (state.speed > 7) state.speed = 7;
+
+  // Apply horizontal movement
+  state.x += state.speed * dt * 60;
 }
