@@ -25,6 +25,9 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: 'docs',
             emptyOutDir: true,
+
+            // 💥 CACHE BUSTING: forces new JS + asset folder on every build
+            assetsDir: `assets-${Date.now()}`, 
         },
     };
 });
