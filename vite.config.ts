@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
     return {
         plugins: [react()],
 
-        // GitHub Pages base
+        // GitHub Pages base path
         base: '/invertfm/',
 
         resolve: {
@@ -26,8 +26,14 @@ export default defineConfig(({ mode }) => {
             outDir: 'docs',
             emptyOutDir: true,
 
-            // 💥 CACHE BUSTING: forces new JS + asset folder on every build
-            assetsDir: `assets-${Date.now()}`, 
+            // 💥 Break ALL old caches
+            assetsDir: `assets-${Date.now()}`,
+
+            rollupOptions: {
+                output: {
+                    entryFileNames: `entry-${Date.now()}.js`,
+                },
+            },
         },
     };
 });
