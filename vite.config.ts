@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
         plugins: [react()],
 
         // GitHub Pages base path
-        base: env.VITE_BASE_PATH || '/invertfm/?v=3/',
+        base: env.VITE_BASE_PATH || '/invertfm/',
 
         resolve: {
             alias: {
