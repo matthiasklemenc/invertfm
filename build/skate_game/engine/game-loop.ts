@@ -1,13 +1,13 @@
 /* ============================================================================
-   CLEAN + STABLE GAME LOOP ENGINE (2025)
-   Compatible with your current renderers + sprite set
+   CLEAN + STABLE GAME LOOP ENGINE (VERSION B)
+   Auto-runner, fullscreen, correct sprite placement.
    ============================================================================ */
 
-import { PlayerRenderer } from "./rendering/PlayerRenderer";
-import { GroundRenderer } from "./rendering/GroundRenderer";
-import { BackgroundRenderer } from "./rendering/BackgroundRenderer";
-import { ObstacleRenderer } from "./rendering/ObstacleRenderer";
-import { CoinRenderer } from "./rendering/CoinRenderer";
+import { PlayerRenderer } from "../rendering/PlayerRenderer";
+import { GroundRenderer } from "../rendering/GroundRenderer";
+import { BackgroundRenderer } from "../rendering/BackgroundRenderer";
+import { ObstacleRenderer } from "../rendering/ObstacleRenderer";
+import { CoinRenderer } from "../rendering/CoinRenderer";
 
 export class GameLoop {
     canvas: HTMLCanvasElement;
@@ -16,40 +16,38 @@ export class GameLoop {
     running = false;
     lastTime = 0;
 
-    /* ---------------- Player State ---------------- */
+    /* ---------------- Player ---------------- */
     player = {
-        x: 160,
+        x: 180,
         y: 0,
+        width: 140,
+        height: 180,
         vy: 0,
-        width: 80,
-        height: 120,
         grounded: true,
-        animTime: 0,
         animFrame: 0,
-        mode: "idle" as "idle" | "run" | "push",
-        characterId: "kai",
+        animTime: 0,
+        mode: "run" as "run" | "push" | "idle",
     };
 
-    /* ---------------- World State ---------------- */
+    /* ---------------- World ---------------- */
     groundY = 0;
     scrollSpeed = 6;
 
     obstacles: any[] = [];
     coins: any[] = [];
 
-    /* ---------------- Renderer Instances ---------------- */
+    /* ---------------- Renderers ---------------- */
     playerRenderer: PlayerRenderer;
     groundRenderer: GroundRenderer;
     backgroundRenderer: BackgroundRenderer;
     obstacleRenderer: ObstacleRenderer;
     coinRenderer: CoinRenderer;
 
-    constructor(canvas: HTMLCanvasElement, initialCharacter: string) {
+    constructor(canvas: HTMLCanvasElement, characterId: string) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d")!;
-        this.groundY = canvas.height - 140;
 
-        this.player.characterId = initialCharacter;
+        this.groundY = canvas.height - 140;
 
         this.playerRenderer = new PlayerRenderer();
         this.groundRenderer = new GroundRenderer();
@@ -57,25 +55,39 @@ export class GameLoop {
         this.obstacleRenderer = new ObstacleRenderer();
         this.coinRenderer = new CoinRenderer();
 
-        this.spawnTestObjects();
+        this.spawnInitialObjects();
+    }
+
+    /* ============================================================================
+       INIT TEST OBJECTS
+       ============================================================================ */
+    spawnInitialObjects() {
+        // obstacles
+        this.obstacles = [
+            { x: 900, y: this.groundY - 80, width: 60, height: 80 },
+            { x: 1500, y: this.groundY - 100, width: 80, height: 100 },
+        ];
+
+        // coins
+        this.coins = [
+            { x: 700, y: this.groundY - 150 },
+            { x: 1150, y: this.groundY - 160 },
+            { x: 1550, y: this.groundY - 140 },
+        ];
     }
 
     /* ============================================================================
        PUBLIC API
        ============================================================================ */
-
-    setCharacter(id: string) {
-        this.player.characterId = id;
-    }
-
     resetGame() {
-        this.player.x = 160;
+        this.player.y = this.groundY - this.player.height;
         this.player.vy = 0;
-        this.player.mode = "idle";
+        this.player.grounded = true;
+        this.player.mode = "run";
+        this.player.animFrame = 0;
         this.player.animTime = 0;
-        this.obstacles = [];
-        this.coins = [];
-        this.spawnTestObjects();
+
+        this.spawnInitialObjects();
     }
 
     start() {
@@ -86,18 +98,6 @@ export class GameLoop {
 
     stop() {
         this.running = false;
-    }
-
-    /* ============================================================================
-       TEMP OBJECTS (UNTIL YOU PROVIDE REAL LEVEL GENERATION)
-       ============================================================================ */
-    spawnTestObjects() {
-        this.obstacles.push({ x: 900, y: this.groundY - 80, width: 60, height: 80 });
-        this.obstacles.push({ x: 1500, y: this.groundY - 100, width: 80, height: 100 });
-
-        this.coins.push({ x: 700, y: this.groundY - 145 });
-        this.coins.push({ x: 1150, y: this.groundY - 160 });
-        this.coins.push({ x: 1550, y: this.groundY - 140 });
     }
 
     /* ============================================================================
@@ -116,10 +116,10 @@ export class GameLoop {
     }
 
     /* ============================================================================
-       UPDATE
+       UPDATE WORLD
        ============================================================================ */
     update(dt: number) {
-        /* -------- PLAYER GRAVITY -------- */
+        /* ----- Gravity + Ground ----- */
         if (!this.player.grounded) {
             this.player.vy += 2000 * dt;
         }
@@ -132,37 +132,26 @@ export class GameLoop {
             this.player.grounded = true;
         }
 
-        /* -------- ANIMATION (idle, run, push) -------- */
+        /* ----- Animation ----- */
         this.player.animTime += dt;
 
-        if (this.player.mode === "run") {
-            const frameDuration = 1 / 8; // 8 FPS
-            if (this.player.animTime >= frameDuration) {
-                this.player.animFrame = (this.player.animFrame + 1) % 4; // 4 run frames
-                this.player.animTime = 0;
-            }
+        let frameDuration =
+            this.player.mode === "run" ? 1 / 8 : 1 / 4; // run=8fps, push=4fps
+
+        if (this.player.animTime >= frameDuration) {
+            this.player.animFrame++;
+            this.player.animTime = 0;
+
+            if (this.player.mode === "run" && this.player.animFrame >= 4)
+                this.player.animFrame = 0;
+
+            if (this.player.mode === "push" && this.player.animFrame >= 2)
+                this.player.animFrame = 0;
         }
 
-        if (this.player.mode === "push") {
-            const frameDuration = 1 / 4; // 4 FPS
-            if (this.player.animTime >= frameDuration) {
-                this.player.animFrame = (this.player.animFrame + 1) % 2; // 2 push frames
-                this.player.animTime = 0;
-            }
-        }
-
-        if (this.player.mode === "idle") {
-            this.player.animFrame = 0;
-        }
-
-        /* -------- WORLD SCROLL -------- */
-        this.obstacles.forEach((o) => {
-            o.x -= this.scrollSpeed;
-        });
-
-        this.coins.forEach((c) => {
-            c.x -= this.scrollSpeed;
-        });
+        /* ----- Scroll World ----- */
+        this.obstacles.forEach((o) => (o.x -= this.scrollSpeed));
+        this.coins.forEach((c) => (c.x -= this.scrollSpeed));
     }
 
     /* ============================================================================
@@ -170,28 +159,21 @@ export class GameLoop {
        ============================================================================ */
     render() {
         const ctx = this.ctx;
-
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        /* -------- BACKGROUND -------- */
-        this.backgroundRenderer.render(ctx, this.scrollSpeed);
+        /* background */
+        this.backgroundRenderer.render(ctx);
 
-        /* -------- GROUND -------- */
+        /* ground */
         this.groundRenderer.render(ctx, this.groundY);
 
-        /* -------- OBSTACLES -------- */
+        /* obstacles */
         this.obstacleRenderer.render(ctx, this.obstacles);
 
-        /* -------- COINS -------- */
+        /* coins */
         this.coinRenderer.render(ctx, this.coins);
 
-        /* -------- PLAYER -------- */
-        this.playerRenderer.render(
-            ctx,
-            this.player,
-            this.player.characterId,
-            this.player.mode,
-            this.player.animFrame
-        );
+        /* player */
+        this.playerRenderer.render(ctx, this.player, 16.66); // 16ms ~ 60fps
     }
 }
