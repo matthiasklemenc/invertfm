@@ -1,179 +1,173 @@
-/* ============================================================================
-   CLEAN + STABLE GAME LOOP ENGINE (VERSION B)
-   Auto-runner, fullscreen, correct sprite placement.
-   ============================================================================ */
+//------------------------------------------------------------
+//  INVERT THE GAME – CLEAN ENGINE CORE (AUTO-RUN)
+//------------------------------------------------------------
 
-import { PlayerRenderer } from "../rendering/PlayerRenderer";
-import { GroundRenderer } from "../rendering/GroundRenderer";
-import { BackgroundRenderer } from "../rendering/BackgroundRenderer";
-import { ObstacleRenderer } from "../rendering/ObstacleRenderer";
-import { CoinRenderer } from "../rendering/CoinRenderer";
+import { PlayerRenderer } from "./rendering/PlayerRenderer";
+import { GroundRenderer } from "./rendering/GroundRenderer";
+import { BackgroundRenderer } from "./rendering/BackgroundRenderer";
+import { ObstacleRenderer } from "./rendering/ObstacleRenderer";
+import { CoinRenderer } from "./rendering/CoinRenderer";
 
-export class GameLoop {
-    canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
+//------------------------------------------------------------
+//  CANVAS + CONTEXT
+//------------------------------------------------------------
+export function startGameLoop(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    running = false;
-    lastTime = 0;
+    //--------------------------------------------------------
+    //  FULLSCREEN MODE
+    //--------------------------------------------------------
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
 
-    /* ---------------- Player ---------------- */
-    player = {
-        x: 180,
-        y: 0,
-        width: 140,
-        height: 180,
-        vy: 0,
-        grounded: true,
-        animFrame: 0,
-        animTime: 0,
-        mode: "run" as "run" | "push" | "idle",
-    };
+    //--------------------------------------------------------
+    // CONSTANTS
+    //--------------------------------------------------------
+    const GROUND_Y = canvas.height * 0.78;
+    const PLAYER_SCALE = 0.35;
+    const SPEED = 6;
 
-    /* ---------------- World ---------------- */
-    groundY = 0;
-    scrollSpeed = 6;
+    //--------------------------------------------------------
+    // INITIALIZE RENDERERS
+    //--------------------------------------------------------
+    const background = new BackgroundRenderer(canvas, ctx);
+    const ground = new GroundRenderer(canvas, ctx, GROUND_Y);
 
-    obstacles: any[] = [];
-    coins: any[] = [];
+    const player = new PlayerRenderer(
+        canvas,
+        ctx,
+        GROUND_Y,
+        PLAYER_SCALE,
+        8,      // RUN FPS
+        4       // PUSH FPS
+    );
 
-    /* ---------------- Renderers ---------------- */
-    playerRenderer: PlayerRenderer;
-    groundRenderer: GroundRenderer;
-    backgroundRenderer: BackgroundRenderer;
-    obstacleRenderer: ObstacleRenderer;
-    coinRenderer: CoinRenderer;
+    const obstacleRenderer = new ObstacleRenderer(canvas, ctx);
+    const coinRenderer = new CoinRenderer(canvas, ctx);
 
-    constructor(canvas: HTMLCanvasElement, characterId: string) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext("2d")!;
+    //--------------------------------------------------------
+    // GAME STATE
+    //--------------------------------------------------------
+    let obstacles: any[] = [];
+    let coins: any[] = [];
+    let lastObstacle = 0;
+    let lastCoin = 0;
+    let time = 0;
 
-        this.groundY = canvas.height - 140;
-
-        this.playerRenderer = new PlayerRenderer();
-        this.groundRenderer = new GroundRenderer();
-        this.backgroundRenderer = new BackgroundRenderer();
-        this.obstacleRenderer = new ObstacleRenderer();
-        this.coinRenderer = new CoinRenderer();
-
-        this.spawnInitialObjects();
+    //--------------------------------------------------------
+    // GENERATION HELPERS
+    //--------------------------------------------------------
+    function spawnObstacle() {
+        obstacles.push({
+            x: canvas.width + 50,
+            y: GROUND_Y - 60,
+            width: 50,
+            height: 50,
+        });
     }
 
-    /* ============================================================================
-       INIT TEST OBJECTS
-       ============================================================================ */
-    spawnInitialObjects() {
-        // obstacles
-        this.obstacles = [
-            { x: 900, y: this.groundY - 80, width: 60, height: 80 },
-            { x: 1500, y: this.groundY - 100, width: 80, height: 100 },
-        ];
-
-        // coins
-        this.coins = [
-            { x: 700, y: this.groundY - 150 },
-            { x: 1150, y: this.groundY - 160 },
-            { x: 1550, y: this.groundY - 140 },
-        ];
+    function spawnCoin() {
+        coins.push({
+            x: canvas.width + 50,
+            y: GROUND_Y - 150 - Math.random() * 40,
+            size: 40,
+        });
     }
 
-    /* ============================================================================
-       PUBLIC API
-       ============================================================================ */
-    resetGame() {
-        this.player.y = this.groundY - this.player.height;
-        this.player.vy = 0;
-        this.player.grounded = true;
-        this.player.mode = "run";
-        this.player.animFrame = 0;
-        this.player.animTime = 0;
-
-        this.spawnInitialObjects();
+    //--------------------------------------------------------
+    // COLLISION
+    //--------------------------------------------------------
+    function checkCollision(a: any, b: any) {
+        return (
+            a.x < b.x + b.width &&
+            a.x + a.width > b.x &&
+            a.y < b.y + b.height &&
+            a.y + a.height > b.y
+        );
     }
 
-    start() {
-        this.running = true;
-        this.lastTime = performance.now();
-        requestAnimationFrame((t) => this.loop(t));
-    }
+    //--------------------------------------------------------
+    // GAME LOOP
+    //--------------------------------------------------------
+    function loop(timestamp: number) {
+        const delta = timestamp - time;
+        time = timestamp;
 
-    stop() {
-        this.running = false;
-    }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    /* ============================================================================
-       MAIN LOOP
-       ============================================================================ */
-    loop(time: number) {
-        if (!this.running) return;
+        //----------------------------------------------------
+        //  RENDER BACKGROUND + GROUND
+        //----------------------------------------------------
+        background.render(delta);
+        ground.render(delta);
 
-        const dt = (time - this.lastTime) / 1000;
-        this.lastTime = time;
+        //----------------------------------------------------
+        //  PLAYER UPDATE
+        //----------------------------------------------------
+        player.update(delta);
+        player.render();
 
-        this.update(dt);
-        this.render();
-
-        requestAnimationFrame((t) => this.loop(t));
-    }
-
-    /* ============================================================================
-       UPDATE WORLD
-       ============================================================================ */
-    update(dt: number) {
-        /* ----- Gravity + Ground ----- */
-        if (!this.player.grounded) {
-            this.player.vy += 2000 * dt;
+        //----------------------------------------------------
+        //  SPAWN OBSTACLES
+        //----------------------------------------------------
+        if (timestamp - lastObstacle > 1800) {
+            spawnObstacle();
+            lastObstacle = timestamp;
         }
 
-        this.player.y += this.player.vy * dt;
-
-        if (this.player.y + this.player.height >= this.groundY) {
-            this.player.y = this.groundY - this.player.height;
-            this.player.vy = 0;
-            this.player.grounded = true;
+        //----------------------------------------------------
+        //  SPAWN COINS
+        //----------------------------------------------------
+        if (timestamp - lastCoin > 1200) {
+            spawnCoin();
+            lastCoin = timestamp;
         }
 
-        /* ----- Animation ----- */
-        this.player.animTime += dt;
+        //----------------------------------------------------
+        //  UPDATE OBSTACLES
+        //----------------------------------------------------
+        obstacles = obstacles.filter((obs) => {
+            obs.x -= SPEED;
 
-        let frameDuration =
-            this.player.mode === "run" ? 1 / 8 : 1 / 4; // run=8fps, push=4fps
+            obstacleRenderer.render(obs.x, obs.y);
 
-        if (this.player.animTime >= frameDuration) {
-            this.player.animFrame++;
-            this.player.animTime = 0;
+            const playerBox = player.getHitbox();
+            if (checkCollision(playerBox, { x: obs.x, y: obs.y, width: 50, height: 50 })) {
+                console.log("❌ HIT OBSTACLE");
+            }
 
-            if (this.player.mode === "run" && this.player.animFrame >= 4)
-                this.player.animFrame = 0;
+            return obs.x > -200;
+        });
 
-            if (this.player.mode === "push" && this.player.animFrame >= 2)
-                this.player.animFrame = 0;
-        }
+        //----------------------------------------------------
+        //  UPDATE COINS
+        //----------------------------------------------------
+        coins = coins.filter((coin) => {
+            coin.x -= SPEED;
 
-        /* ----- Scroll World ----- */
-        this.obstacles.forEach((o) => (o.x -= this.scrollSpeed));
-        this.coins.forEach((c) => (c.x -= this.scrollSpeed));
+            coinRenderer.render(coin.x, coin.y);
+
+            const playerBox = player.getHitbox();
+            if (
+                playerBox.x < coin.x + coin.size &&
+                playerBox.x + playerBox.width > coin.x &&
+                playerBox.y < coin.y + coin.size &&
+                playerBox.y + playerBox.height > coin.y
+            ) {
+                console.log("⭐ COIN COLLECTED");
+                return false;
+            }
+
+            return coin.x > -200;
+        });
+
+        requestAnimationFrame(loop);
     }
 
-    /* ============================================================================
-       RENDER
-       ============================================================================ */
-    render() {
-        const ctx = this.ctx;
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        /* background */
-        this.backgroundRenderer.render(ctx);
-
-        /* ground */
-        this.groundRenderer.render(ctx, this.groundY);
-
-        /* obstacles */
-        this.obstacleRenderer.render(ctx, this.obstacles);
-
-        /* coins */
-        this.coinRenderer.render(ctx, this.coins);
-
-        /* player */
-        this.playerRenderer.render(ctx, this.player, 16.66); // 16ms ~ 60fps
-    }
+    requestAnimationFrame(loop);
 }
