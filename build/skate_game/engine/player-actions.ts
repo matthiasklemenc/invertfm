@@ -1,76 +1,85 @@
-// player-actions.ts
-// ---------------------------------------------------------
-// Player input + trick actions (rotation, jump charge).
-// Connects cleanly to physics.ts
-// ---------------------------------------------------------
+/* ============================================================================
+   PLAYER ACTION HELPERS — INVERT FM SKATE GAME
+   Pure action utilities used optionally by the main game-loop.
+   ============================================================================ */
 
-import { PhysicsState, startJumpCharge, releaseJump } from "./physics";
-
-export interface PlayerInput {
-  jumping: boolean;
-  rotatingLeft: boolean;
-  rotatingRight: boolean;
+export interface PlayerState {
+    x: number;
+    y: number;
+    vy: number;
+    anim: string;
+    facing: number;
+    onGround: boolean;
+    falling: boolean;
+    spinCount: number;
+    crashType: string | null;
+    inUnderworld: boolean;
+    underworldTime: number;
+    lives: number;
 }
 
-export function createPlayerInput(): PlayerInput {
-  return {
-    jumping: false,
-    rotatingLeft: false,
-    rotatingRight: false,
-  };
+/* ============================================================================
+   BASIC ACTIONS
+   ============================================================================ */
+
+/** Starts an ollie if allowed */
+export function startOllie(player: PlayerState) {
+    if (player.onGround && !player.falling) {
+        player.vy = -900;              // synced with engine gravity
+        player.onGround = false;
+        player.anim = "ollie";
+    }
 }
 
-// ---------------------------------------------------------
-// HANDLE PRESS START (from onTouchStart)
-// ---------------------------------------------------------
+/** Hard crash into obstacle */
+export function crash(player: PlayerState, type: string = "default") {
+    if (player.crashType) return;      // already crashing
 
-export function handlePressStart(
-  input: PlayerInput,
-  physics: PhysicsState
-) {
-  input.jumping = true;
-  startJumpCharge(physics);
+    player.crashType = type;
+    player.anim = "crash";
+
+    player.lives -= 1;
+    return player.lives <= 0;         // returns true if game over
 }
 
-// ---------------------------------------------------------
-// HANDLE PRESS END (from onTouchEnd)
-// ---------------------------------------------------------
-
-export function handlePressEnd(
-  input: PlayerInput,
-  physics: PhysicsState
-) {
-  input.jumping = false;
-  releaseJump(physics);
+/** Reset crash state */
+export function resetCrash(player: PlayerState) {
+    player.crashType = null;
+    player.anim = "run";
 }
 
-// ---------------------------------------------------------
-// HANDLE ROTATION INPUTS (swipes or tilt)
-// ---------------------------------------------------------
+/* ============================================================================
+   ADVANCED ACTIONS
+   ============================================================================ */
 
-export function startRotateLeft(
-  input: PlayerInput,
-  physics: PhysicsState
-) {
-  input.rotatingLeft = true;
-  physics.angularVelocity = -3.0; // clockwise
+/** Natas spin on hydrant */
+export function startNatasSpin(player: PlayerState, spins: number = 1) {
+    player.spinCount = spins;
+    player.anim = "natas";
+    player.onGround = true;
+    player.vy = 0;
 }
 
-export function startRotateRight(
-  input: PlayerInput,
-  physics: PhysicsState
-) {
-  input.rotatingRight = true;
-  physics.angularVelocity = 3.0; // counter-clockwise
+/** Underworld fall (tube) */
+export function startUnderworldFall(player: PlayerState) {
+    player.falling = true;
+    player.inUnderworld = true;
+    player.underworldTime = 0;
+    player.anim = "falling";
 }
 
-export function stopRotation(
-  input: PlayerInput,
-  physics: PhysicsState
-) {
-  input.rotatingLeft = false;
-  input.rotatingRight = false;
-
-  // after letting go, rotation slows
-  physics.angularVelocity *= 0.25;
+/* ============================================================================
+   RESET PLAYER FULLY
+   ============================================================================ */
+export function resetPlayer(player: PlayerState, groundY: number) {
+    player.x = 200;
+    player.y = groundY;
+    player.vy = 0;
+    player.anim = "run";
+    player.onGround = true;
+    player.falling = false;
+    player.crashType = null;
+    player.spinCount = 1;
+    player.inUnderworld = false;
+    player.underworldTime = 0;
 }

@@ -1,159 +1,115 @@
-// PlayerRenderer.ts
-// =========================================================
-// FINAL CLASS-BASED VERSION (RUN + PUSH ONLY)
-// with CORRECT GitHub Pages sprite paths
-// =========================================================
+/* ============================================================================
+   PLAYER RENDERER — INVERT FM SKATE GAME
+   Supports run, push, ollie, natas, crash, falling animations.
+   Rotation is handled for quarterpipe & spins.
+   ============================================================================ */
 
-import { loadImage } from "../assetLoader";
-
-// GitHub Pages base resolver
-function sprite(path: string): string {
-  const base = import.meta.env.BASE_URL || "/";
-  return base + "skate_game/sprites/" + path;
+interface AnimationDef {
+    img: HTMLImageElement;
+    frames: number;
+    fps: number;
 }
 
-// ----------------------------------------------
-// TYPES
-// ----------------------------------------------
-export type PlayerSpriteSet = {
-  run: HTMLImageElement[];
-  push: HTMLImageElement[];
-};
-
-// ----------------------------------------------
-// CONSTANTS
-// ----------------------------------------------
-const TARGET_HEIGHT = 120;
-const RUN_FPS = 14;
-const PUSH_FPS = 14;
-
-// ----------------------------------------------
-// CLASS
-// ----------------------------------------------
 export class PlayerRenderer {
-  sprites: PlayerSpriteSet = {
-    run: [],
-    push: []
-  };
+    rotation = 0;
+    frameTimer = 0;
+    currentFrame = 0;
 
-  // Animation indices
-  runIndex = 0;
-  pushIndex = 0;
+    animations: Record<string, AnimationDef> = {};
+    activeAnim: string = "run";
 
-  // Timers
-  runTimer = 0;
-  pushTimer = 0;
+    spriteWidth = 256;
+    spriteHeight = 256;
 
-  // Loaded?
-  isLoaded = false;
+    ready = false;
 
-  constructor() {
-    this.loadAll();
-  }
-
-  // ----------------------------------------------
-  // LOAD SPRITES (only RUN + PUSH)
-  // ----------------------------------------------
-  async loadAll() {
-    const loadGroup = async (files: string[]) =>
-      Promise.all(files.map(f => loadImage(sprite(f))));
-
-    this.sprites.run = await loadGroup([
-      "player_run_01.png",
-      "player_run_02.png",
-      "player_run_03.png",
-      "player_run_04.png"
-    ]);
-
-    this.sprites.push = await loadGroup([
-      "player_push_01.png",
-      "player_push_02.png"
-    ]);
-
-    this.isLoaded = true;
-  }
-
-  // ----------------------------------------------
-  // UPDATE
-  // ----------------------------------------------
-  update(
-    player: {
-      state: "run" | "push";
-    },
-    dt: number
-  ) {
-    if (!this.isLoaded) return;
-
-    if (player.state === "push") {
-      this.pushTimer += dt;
-      if (this.pushTimer >= 1 / PUSH_FPS) {
-        this.pushTimer = 0;
-        this.pushIndex = (this.pushIndex + 1) % this.sprites.push.length;
-      }
-    } else {
-      this.runTimer += dt;
-      if (this.runTimer >= 1 / RUN_FPS) {
-        this.runTimer = 0;
-        this.runIndex = (this.runIndex + 1) % this.sprites.run.length;
-      }
-    }
-  }
-
-  // ----------------------------------------------
-  // RENDER
-  // ----------------------------------------------
-  render(
-    ctx: CanvasRenderingContext2D,
-    player: {
-      x: number;
-      y: number;
-      flipped: boolean;
-      state: "run" | "push";
-    }
-  ) {
-    if (!this.isLoaded) return;
-
-    let img: HTMLImageElement;
-
-    if (player.state === "push") {
-      img = this.sprites.push[this.pushIndex];
-    } else {
-      img = this.sprites.run[this.runIndex];
+    constructor() {
+        this.loadSprites();
     }
 
-    this.drawFrame(ctx, img, player.x, player.y, player.flipped);
-  }
+    /* ============================================================================
+       LOAD ALL PLAYER SPRITES
+       ============================================================================ */
+    async loadSprites() {
+        const names = ["run", "push", "ollie", "natas", "crash", "falling"];
+        const fps = { run: 12, push: 10, ollie: 8, natas: 10, crash: 6, falling: 6 };
+        const frames = { run: 6, push: 6, ollie: 4, natas: 6, crash: 4, falling: 4 };
 
-  // ----------------------------------------------
-  // DRAW FRAME
-  // ----------------------------------------------
-  private drawFrame(
-    ctx: CanvasRenderingContext2D,
-    img: HTMLImageElement,
-    x: number,
-    y: number,
-    flipped: boolean
-  ) {
-    if (!img) return;
+        for (const n of names) {
+            const img = new Image();
+            img.src = `/skate_game/assets/kai_${n}.png`;
 
-    const aspect = img.width / img.height;
-    const targetWidth = TARGET_HEIGHT * aspect;
+            await new Promise(res => (img.onload = res));
 
-    ctx.save();
+            this.animations[n] = {
+                img,
+                frames: frames[n],
+                fps: fps[n]
+            };
+        }
 
-    if (flipped) {
-      ctx.scale(-1, 1);
-      ctx.drawImage(
-        img,
-        -x - targetWidth,
-        y,
-        targetWidth,
-        TARGET_HEIGHT
-      );
-    } else {
-      ctx.drawImage(img, x, y, targetWidth, TARGET_HEIGHT);
+        this.ready = true;
     }
 
-    ctx.restore();
-  }
+    /* ============================================================================
+       UPDATE ANIMATION
+       ============================================================================ */
+    update(dt: number, player: any) {
+        if (!this.ready) return;
+
+        if (this.activeAnim !== player.anim) {
+            this.activeAnim = player.anim;
+            this.currentFrame = 0;
+            this.frameTimer = 0;
+        }
+
+        const anim = this.animations[this.activeAnim];
+        if (!anim) return;
+
+        this.frameTimer += dt;
+        const frameDuration = 1 / anim.fps;
+
+        while (this.frameTimer > frameDuration) {
+            this.frameTimer -= frameDuration;
+            this.currentFrame = (this.currentFrame + 1) % anim.frames;
+        }
+    }
+
+    /* ============================================================================
+       RENDER
+       ============================================================================ */
+    render(ctx: CanvasRenderingContext2D, player: any) {
+        if (!this.ready) return;
+
+        const anim = this.animations[this.activeAnim];
+        if (!anim) return;
+
+        const frameX = this.currentFrame * this.spriteWidth;
+        const img = anim.img;
+
+        const drawX = player.x - this.spriteWidth / 2;
+        const drawY = player.y - this.spriteHeight;
+
+        ctx.save();
+
+        /* --------------------------------------------
+           Apply player rotation (quarterpipe etc.)
+        -------------------------------------------- */
+        if (this.rotation !== 0) {
+            ctx.translate(player.x, player.y - this.spriteHeight / 2);
+            ctx.rotate(this.rotation);
+            ctx.translate(-player.x, -(player.y - this.spriteHeight / 2));
+        }
+
+        /* --------------------------------------------
+           Draw current frame
+        -------------------------------------------- */
+        ctx.drawImage(
+            img,
+            frameX, 0, this.spriteWidth, this.spriteHeight,
+            drawX, drawY, this.spriteWidth, this.spriteHeight
+        );
+
+        ctx.restore();
+    }
 }

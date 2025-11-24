@@ -1,54 +1,61 @@
-// ---------------------------------------------------------
-// CoinRenderer.ts — CLASS VERSION (NEW ENGINE)
-// Keeps your original coin graphics + glow effect
-// ---------------------------------------------------------
+/* ============================================================================
+   COIN & DIAMOND RENDERER — INVERT FM SKATE GAME
+   Renders collectible coins and diamonds with pulse animation.
+   ============================================================================ */
 
 export class CoinRenderer {
-  constructor() {}
+    constructor() {}
 
-  render(ctx: CanvasRenderingContext2D, coins: any[]) {
-    if (!coins) return;
-
-    for (const coin of coins) {
-      const { x, y, radius, pulse } = coin;
-      this.drawCoin(ctx, x, y, radius, pulse);
+    render(ctx: CanvasRenderingContext2D, collectibles: any[]) {
+        for (const c of collectibles) {
+            this.drawCollectible(ctx, c);
+        }
     }
-  }
 
-  drawCoin(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    radius: number,
-    pulse: number
-  ) {
-    // Outer glow
-    ctx.beginPath();
-    const glowRadius = radius + 4 + Math.sin(pulse * 6) * 2;
-    const gradient = ctx.createRadialGradient(
-      x, y, radius * 0.2,
-      x, y, glowRadius
-    );
+    drawCollectible(ctx: CanvasRenderingContext2D, c: any) {
+        const pulse = 1 + Math.sin(c.pulse) * 0.15; // subtle breathing effect
+        const r = c.radius * pulse;
 
-    gradient.addColorStop(0, "rgba(255, 220, 0, 0.95)");
-    gradient.addColorStop(1, "rgba(255, 180, 0, 0.0)");
+        if (c.type === "coin") {
+            this.drawCoin(ctx, c.x, c.y, r);
+        } else {
+            this.drawDiamond(ctx, c.x, c.y, r);
+        }
+    }
 
-    ctx.fillStyle = gradient;
-    ctx.fillRect(x - glowRadius, y - glowRadius, glowRadius * 2, glowRadius * 2);
+    /* ============================================================================
+       GOLD COIN
+       ============================================================================ */
+    drawCoin(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+        const grad = ctx.createRadialGradient(x, y, r * 0.2, x, y, r);
+        grad.addColorStop(0, "#fff38a");
+        grad.addColorStop(1, "#d1a300");
 
-    // Coin body
-    ctx.beginPath();
-    ctx.fillStyle = "#ffd400";
-    ctx.strokeStyle = "#ffb300";
-    ctx.lineWidth = 2;
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
 
-    // Highlight top-left
-    ctx.beginPath();
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.arc(x - radius * 0.3, y - radius * 0.3, radius * 0.3, 0, Math.PI * 2);
-    ctx.fill();
-  }
+        ctx.strokeStyle = "#8c6d00";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+
+    /* ============================================================================
+       DIAMOND
+       ============================================================================ */
+    drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+        ctx.fillStyle = "#5df0ff";
+        ctx.strokeStyle = "#2aa8b6";
+        ctx.lineWidth = 3;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y - r);
+        ctx.lineTo(x + r, y);
+        ctx.lineTo(x, y + r);
+        ctx.lineTo(x - r, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
 }

@@ -1,97 +1,116 @@
-// ---------------------------------------------------------
-// ObstacleRenderer.ts — CLASS VERSION (NEW ENGINE)
-// Keeps your original rail, block, gap graphics
-// ---------------------------------------------------------
+/* ============================================================================
+   OBSTACLE RENDERER — INVERT FM SKATE GAME
+   Renders hydrants, tubes, quarterpipes, trucks, boxes.
+   Uses simple placeholder geometry so the game runs even without images.
+   ============================================================================ */
 
 export class ObstacleRenderer {
-  constructor() {}
+    constructor() {}
 
-  render(ctx: CanvasRenderingContext2D, obstacles: any[]) {
-    if (!obstacles) return;
+    render(ctx: CanvasRenderingContext2D, obstacles: any[]) {
+        const h = ctx.canvas.height;
+        const groundY = h - 140;
 
-    for (const obstacle of obstacles) {
-      const { x, y, width, height, type } = obstacle;
+        for (const obs of obstacles) {
+            const x = obs.x;
+            const w = obs.width;
+            const h0 = obs.height;
 
-      switch (type) {
-        case "block":
-          this.drawBlock(ctx, x, y, width, height);
-          break;
+            const top = groundY - h0;
+            const left = x - w / 2;
 
-        case "rail":
-          this.drawRail(ctx, x, y, width, height);
-          break;
+            switch (obs.type) {
+                case "box":
+                    this.drawBox(ctx, left, top, w, h0);
+                    break;
 
-        case "gap":
-          this.drawGap(ctx, x, y, width, height);
-          break;
+                case "hydrant":
+                    this.drawHydrant(ctx, left, top, w, h0);
+                    break;
 
-        default:
-          this.drawBlock(ctx, x, y, width, height);
-      }
+                case "tube_green":
+                    this.drawTube(ctx, left, top, w, h0);
+                    break;
+
+                case "quarterpipe":
+                    this.drawQuarterpipe(ctx, left, top, w, h0);
+                    break;
+
+                case "truck":
+                    this.drawTruck(ctx, left, top, w, h0);
+                    break;
+
+                default:
+                    this.drawBox(ctx, left, top, w, h0);
+                    break;
+            }
+        }
     }
-  }
 
-  // --------------------------
-  // BLOCK (your original style)
-  // --------------------------
-  drawBlock(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number
-  ) {
-    ctx.fillStyle = "#4e4e4e";
-    ctx.fillRect(x, y, width, height);
+    /* ============================================================================
+       BOX
+       ============================================================================ */
+    drawBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+        ctx.fillStyle = "#c4711a";
+        ctx.fillRect(x, y, w, h);
 
-    // top highlight
-    ctx.fillStyle = "#6a6a6a";
-    ctx.fillRect(x, y, width, 4);
+        ctx.strokeStyle = "#8a4a0a";
+        ctx.strokeRect(x, y, w, h);
+    }
 
-    // shadow
-    ctx.fillStyle = "rgba(0,0,0,0.25)";
-    ctx.fillRect(x, y + height - 6, width, 6);
-  }
+    /* ============================================================================
+       HYDRANT — placeholder red hydrant
+       ============================================================================ */
+    drawHydrant(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+        ctx.fillStyle = "#d01010";
+        ctx.fillRect(x + w * 0.2, y, w * 0.6, h);
 
-  // --------------------------
-  // RAIL (your original style)
-  // --------------------------
-  drawRail(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number
-  ) {
-    // rail body
-    ctx.fillStyle = "#c9c9c9";
-    ctx.fillRect(x, y, width, height);
+        ctx.fillStyle = "#b00000";
+        ctx.fillRect(x, y + h * 0.3, w, h * 0.4);
+    }
 
-    // top shine
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x, y, width, 3);
+    /* ============================================================================
+       GREEN TUBE — placeholder green warp pipe
+       ============================================================================ */
+    drawTube(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+        ctx.fillStyle = "#1ea832";
+        ctx.fillRect(x, y, w, h);
 
-    // side shadow
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fillRect(x, y + height - 4, width, 4);
-  }
+        ctx.fillStyle = "#0e6b1f";
+        ctx.fillRect(x, y, w, h * 0.15);
+    }
 
-  // --------------------------
-  // GAP (your original style)
-  // --------------------------
-  drawGap(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number
-  ) {
-    ctx.fillStyle = "#111827";
-    ctx.fillRect(x, y, width, height);
+    /* ============================================================================
+       QUARTERPIPE — placeholder ramp graphic
+       ============================================================================ */
+    drawQuarterpipe(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+        const r = w; // radius approximated to width
 
-    // edge lines
-    ctx.strokeStyle = "#3b3b3b";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x, y, width, height);
-  }
+        ctx.beginPath();
+        ctx.moveTo(x + w, y + h);
+        ctx.arc(x + w, y + h, r, Math.PI, Math.PI * 1.5, false);
+        ctx.closePath();
+
+        ctx.fillStyle = "#888";
+        ctx.fill();
+        ctx.strokeStyle = "#444";
+        ctx.stroke();
+    }
+
+    /* ============================================================================
+       CYBERTRUCK — placeholder simple truck shape
+       ============================================================================ */
+    drawTruck(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+        ctx.fillStyle = "#555";
+        ctx.fillRect(x, y + h * 0.25, w, h * 0.75);
+
+        ctx.fillStyle = "#777";
+        ctx.fillRect(x + w * 0.1, y, w * 0.5, h * 0.35);
+
+        ctx.fillStyle = "#2a2a2a";
+        ctx.beginPath();
+        ctx.arc(x + w * 0.2, y + h, h * 0.2, 0, Math.PI * 2);
+        ctx.arc(x + w * 0.8, y + h, h * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }

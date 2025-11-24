@@ -1,51 +1,33 @@
-// ---------------------------------------------------------
-// assetLoader.ts
-// Loads ALL PNG sprites for the player + logo
-// ---------------------------------------------------------
+/* ============================================================================
+   ASSET LOADER — SAFE IMAGE CACHING
+   INVERT FM Skate Game
+   ============================================================================ */
 
-// Helper to load a single image
+const imageCache = new Map<string, HTMLImageElement>();
+
+/**
+ * Loads an image safely with caching.
+ * Always returns a Promise<HTMLImageElement>.
+ */
 export function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
+    return new Promise((resolve, reject) => {
+        // Already loaded? Return instantly.
+        if (imageCache.has(src)) {
+            resolve(imageCache.get(src)!);
+            return;
+        }
 
-// ---------------------------------------------------------
-// Load all sprites used by the PlayerRenderer
-// ---------------------------------------------------------
-export async function loadAllSprites() {
-  const spriteNames = [
-    "player_run_01.png",
-    "player_run_02.png",
-    "player_run_03.png",
-    "player_run_04.png",
-    "player_push_01.png",
-    "player_push_02.png",
-    "game_logo.png",
-    "player_carousel.png"
-  ];
+        const img = new Image();
+        img.src = src;
 
-  const sprites: Record<string, HTMLImageElement> = {};
+        img.onload = () => {
+            imageCache.set(src, img);
+            resolve(img);
+        };
 
-  for (const name of spriteNames) {
-    sprites[name] = await loadImage(`/invertfm/build/skate_game/sprites/${name}`);
-  }
-
-  return {
-    run: [
-      sprites["player_run_01.png"],
-      sprites["player_run_02.png"],
-      sprites["player_run_03.png"],
-      sprites["player_run_04.png"]
-    ],
-    push: [
-      sprites["player_push_01.png"],
-      sprites["player_push_02.png"]
-    ],
-    logo: sprites["game_logo.png"],
-    carousel: sprites["player_carousel.png"]
-  };
+        img.onerror = (err) => {
+            console.error("Image failed to load:", src, err);
+            reject(err);
+        };
+    });
 }

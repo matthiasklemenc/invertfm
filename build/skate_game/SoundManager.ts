@@ -1,89 +1,73 @@
-// SoundManager.ts
-// Simple HTMLAudioElement-based sound system for the new modular engine
+/* ============================================================================
+   SOUND MANAGER — INVERT FM SKATE GAME
+   Lightweight, mobile-safe audio loader and one-shot SFX player.
+   ============================================================================ */
+
+const soundCache = new Map<string, HTMLAudioElement>();
 
 export class SoundManager {
-  static music: HTMLAudioElement | null = null;
-  static coin: HTMLAudioElement | null = null;
-  static crash: HTMLAudioElement | null = null;
+    muted = false;
 
-  static jump: HTMLAudioElement | null = null;
-  static flip: HTMLAudioElement | null = null;
-  static grind: HTMLAudioElement | null = null;
+    constructor() {}
 
-  static init() {
-    // Initialize all sounds once
-    if (!this.music) {
-      this.music = new Audio("/sounds/music.mp3");
-      this.music.loop = true;
-      this.music.volume = 0.4;
+    /* -----------------------------------------------
+       Load & cache audio
+    ------------------------------------------------ */
+    async load(src: string): Promise<HTMLAudioElement> {
+        if (soundCache.has(src)) return soundCache.get(src)!;
+
+        const audio = new Audio(src);
+
+        await new Promise((resolve) => {
+            audio.onloadeddata = resolve;
+        });
+
+        soundCache.set(src, audio);
+        return audio;
     }
 
-    if (!this.coin) this.coin = new Audio("/sounds/coin.wav");
-    if (!this.crash) this.crash = new Audio("/sounds/crash.wav");
+    /* -----------------------------------------------
+       Play a sound once (coin, landing, crash…)
+    ------------------------------------------------ */
+    async playOneShot(src: string, volume: number = 1.0) {
+        if (this.muted) return;
 
-    if (!this.jump) this.jump = new Audio("/sounds/jump.wav");
-    if (!this.flip) this.flip = new Audio("/sounds/flip.wav");
-    if (!this.grind) this.grind = new Audio("/sounds/grind.wav");
-  }
-
-  static playMusic() {
-    this.init();
-    if (this.music) {
-      this.music.currentTime = 0;
-      this.music.play().catch(() => {});
+        const base = await this.load(src);
+        const clone = base.cloneNode(true) as HTMLAudioElement;
+        clone.volume = volume;
+        clone.play().catch(() => {});
     }
-  }
 
-  static pauseMusic() {
-    if (this.music) this.music.pause();
-  }
+    /* -----------------------------------------------
+       Looping background music (optional)
+    ------------------------------------------------ */
+    async playLoop(src: string, volume: number = 0.6) {
+        if (this.muted) return;
 
-  static resumeMusic() {
-    if (this.music) this.music.play().catch(() => {});
-  }
+        const audio = await this.load(src);
+        audio.loop = true;
+        audio.volume = volume;
 
-  static stopAll() {
-    if (this.music) this.music.pause();
-  }
-
-  static playCoin() {
-    if (this.coin) {
-      this.coin.currentTime = 0;
-      this.coin.play();
+        audio.play().catch(() => {});
     }
-  }
 
-  static playCrash() {
-    if (this.crash) {
-      this.crash.currentTime = 0;
-      this.crash.play();
+    /* -----------------------------------------------
+       Stop all sounds
+    ------------------------------------------------ */
+    stopAll() {
+        for (const a of soundCache.values()) {
+            try {
+                a.pause();
+                a.currentTime = 0;
+            } catch {}
+        }
     }
-  }
 
-  static playJump() {
-    if (this.jump) {
-      this.jump.currentTime = 0;
-      this.jump.play();
+    /* -----------------------------------------------
+       Toggle mute
+    ------------------------------------------------ */
+    toggleMute() {
+        this.muted = !this.muted;
+        if (this.muted) this.stopAll();
     }
-  }
-
-  static playFlip() {
-    if (this.flip) {
-      this.flip.currentTime = 0;
-      this.flip.play();
-    }
-  }
-
-  static playGrind() {
-    if (this.grind) {
-      this.grind.currentTime = 0;
-      this.grind.play();
-    }
-  }
-
-  static unlock() {
-    // Required for mobile autoplay unlocking
-    this.playJump();
-    this.pauseMusic();
-  }
 }

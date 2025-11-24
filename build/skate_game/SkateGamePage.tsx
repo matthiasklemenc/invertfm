@@ -1,141 +1,142 @@
-// FULL NEW SkateGamePage.tsx GENERATED
-// (See ChatGPT message for explanation)
+/* ============================================================================
+   SKATE GAME PAGE — INVERT FM SKATE GAME
+   Main React component mounting the canvas and connecting to GameLoop engine.
+   ============================================================================ */
 
 import React, { useEffect, useRef, useState } from "react";
-import { startGameLoop } from "./engine/game-loop";
-import { createPhysicsState } from "./engine/physics";
-import { createObstacleManager } from "./engine/obstacles";
-import { createPlayerInput } from "./engine/player-actions";
-import { createCollectibleManager } from "./engine/collectibles";
 
-import { BackgroundRenderer } from "./engine/rendering/BackgroundRenderer";
-import { GroundRenderer } from "./engine/rendering/GroundRenderer";
-import { ObstacleRenderer } from "./engine/rendering/ObstacleRenderer";
-import { CoinRenderer } from "./engine/rendering/CoinRenderer";
-import { PlayerRenderer } from "./engine/rendering/PlayerRenderer";
+import Carousel3D from "./Carousel3D";
+import CharacterPreview from "./CharacterPreview";
 
-import { loadAllSprites } from "./engine/assetLoader";
+import { GameLoop } from "./engine/game-loop";
 
 export default function SkateGamePage() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const gameRef = useRef<GameLoop | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [paused, setPaused] = useState(false);
-  const [score, setScore] = useState(0);
+    const [selectedChar, setSelectedChar] = useState("kai");
+    const [gameStarted, setGameStarted] = useState(false);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    /* ============================================================================
+       INITIALIZE GAME LOOP (ONCE)
+       ============================================================================ */
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
 
-    let stopLoop: null | (() => void) = null;
+        // Correct canvas size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-    loadAllSprites()
-      .then((sprites) => {
-        setLoading(false);
+        // Create game instance only ONCE
+        if (!gameRef.current) {
+            gameRef.current = new GameLoop(canvas);
+        }
 
-        const physics = createPhysicsState();
-        const obstacles = createObstacleManager();
-        const coins = createCollectibleManager();
-        const input = createPlayerInput(canvas);
+        const handleResize = () => {
+            if (!canvas) return;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        };
 
-        const backgroundRenderer = new BackgroundRenderer();
-        const groundRenderer = new GroundRenderer();
-        const obstacleRenderer = new ObstacleRenderer();
-        const coinRenderer = new CoinRenderer();
-        const playerRenderer = new PlayerRenderer(sprites);
+        window.addEventListener("resize", handleResize);
 
-        stopLoop = startGameLoop((dt) => {
-          if (paused) return;
+        return () => {
+            window.removeEventListener("resize", handleResize);
+        };
+    }, []);
 
-          physics.update(dt, input);
-          obstacles.update(dt, physics.playerX);
-          coins.update(dt, physics.playerX);
-
-          setScore(coins.collected);
-
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          backgroundRenderer.render(ctx, physics);
-          groundRenderer.render(ctx, physics);
-          obstacleRenderer.render(ctx, obstacles.list);
-          coinRenderer.render(ctx, coins.list);
-          playerRenderer.render(ctx, physics, input);
-        });
-      })
-      .catch((err) => console.error("Sprite load failed:", err));
-
-    return () => {
-      if (stopLoop) stopLoop();
+    /* ============================================================================
+       START GAME
+       ============================================================================ */
+    const startGame = () => {
+        if (!gameRef.current) return;
+        setGameStarted(true);
+        gameRef.current.resetGame?.();
+        gameRef.current.start();
     };
-  }, [paused]);
 
-  const togglePause = () => setPaused((p) => !p);
+    /* ============================================================================
+       CONTENT RENDER
+       ============================================================================ */
+    if (!gameStarted) {
+        return (
+            <div
+                style={{
+                    width: "100%",
+                    height: "100vh",
+                    background: "#000",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    color: "#fff"
+                }}
+            >
+                <h1
+                    style={{
+                        marginBottom: "10px",
+                        fontSize: "2.2rem",
+                        fontWeight: "bold",
+                        letterSpacing: "2px",
+                        textShadow: "0 0 10px rgba(255,255,255,0.5)"
+                    }}
+                >
+                    SELECT YOUR SKATER
+                </h1>
 
-  return (
-    <div
-      style={{
-        width: "100%",
-        minHeight: "100vh",
-        background: "#0c1424",
-        display: "flex",
-        justifyContent: "center",
-        flexDirection: "column",
-        alignItems: "center",
-        paddingTop: "20px",
-      }}
-    >
-      <h2 style={{ color: "white", marginBottom: "10px" }}>Skate Game</h2>
+                {/* 3D character carousel */}
+                <Carousel3D
+                    selected={selectedChar}
+                    onSelect={(id) => setSelectedChar(id)}
+                />
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-        <button
-          style={{
-            padding: "10px 18px",
-            borderRadius: "6px",
-            background: "#ff4b4b",
-            color: "white",
-            border: "none",
-          }}
-          onClick={() => (window.location.href = "/invertfm/")}
+                {/* Large character preview */}
+                <CharacterPreview selected={selectedChar} />
+
+                {/* START BUTTON */}
+                <button
+                    onClick={startGame}
+                    style={{
+                        marginTop: "30px",
+                        padding: "14px 26px",
+                        fontSize: "22px",
+                        background: "#c52323",
+                        border: "none",
+                        borderRadius: "12px",
+                        color: "#fff",
+                        cursor: "pointer",
+                        boxShadow: "0 0 10px rgba(255,0,0,0.4)"
+                    }}
+                >
+                    START GAME
+                </button>
+            </div>
+        );
+    }
+
+    /* ============================================================================
+       GAME RUNNING — SHOW CANVAS ONLY
+       ============================================================================ */
+    return (
+        <div
+            style={{
+                width: "100%",
+                height: "100vh",
+                overflow: "hidden",
+                background: "#000"
+            }}
         >
-          Exit Game
-        </button>
-
-        <button
-          style={{
-            padding: "10px 18px",
-            borderRadius: "6px",
-            background: paused ? "#00d98a" : "#ffaa33",
-            color: "white",
-            border: "none",
-          }}
-          onClick={togglePause}
-        >
-          {paused ? "Resume" : "Pause"}
-        </button>
-      </div>
-
-      {loading && (
-        <div style={{ color: "white", marginBottom: "10px" }}>
-          Loading sprites…
+            <canvas
+                ref={canvasRef}
+                style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "block",
+                    background: "#000"
+                }}
+            />
         </div>
-      )}
-
-      <canvas
-        ref={canvasRef}
-        width={900}
-        height={450}
-        style={{
-          border: "2px solid white",
-          background: "black",
-          maxWidth: "100%",
-        }}
-      />
-
-      <div style={{ marginTop: "20px", color: "white", fontSize: "22px" }}>
-        Score: {score}
-      </div>
-    </div>
-  );
+    );
 }

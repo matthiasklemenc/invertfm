@@ -1,87 +1,32 @@
-// ---------------------------------------------------------
-// GroundRenderer.ts — CLASS VERSION (fixed for new engine)
-// Keeps all your old asphalt + highlight + texture visuals
-// ---------------------------------------------------------
-
-// No need for GroundState interface anymore
-// Everything is handled internally
+/* ============================================================================
+   GROUND RENDERER — INVERT FM SKATE GAME
+   Simple scrolling ground band (world moves left).
+   ============================================================================ */
 
 export class GroundRenderer {
-  offset: number = 0;
+    groundColor = "#6a4f30";  // warm brown
+    edgeColor = "#4a3723";    // darker top edge
 
-  constructor() {}
+    groundHeight = 140;       // distance from bottom (matches game-loop)
 
-  // Equivalent of your old updateGround()
-  update(speed: number, dt: number) {
-    this.offset += speed * 0.45 * dt;
-  }
+    constructor() {}
 
-  // Asphalt surface
-  drawAsphalt(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    groundY: number
-  ) {
-    ctx.fillStyle = "#2b2b2b";
-    ctx.fillRect(0, groundY, width, height - groundY);
-  }
+    render(ctx: CanvasRenderingContext2D, player: any) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
 
-  // Highlight strip
-  drawGroundHighlight(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    groundY: number
-  ) {
-    const GRADIENT_HEIGHT = 12;
+        const groundY = h - this.groundHeight;
 
-    const g = ctx.createLinearGradient(0, groundY, 0, groundY + GRADIENT_HEIGHT);
-    g.addColorStop(0, "#5a5a5a");
-    g.addColorStop(1, "rgba(255,255,255,0)");
+        /* --------------------------------------------
+           TOP EDGE
+        -------------------------------------------- */
+        ctx.fillStyle = this.edgeColor;
+        ctx.fillRect(0, groundY - 5, w, 5);
 
-    ctx.fillStyle = g;
-    ctx.fillRect(0, groundY, GRADIENT_HEIGHT, GRADIENT_HEIGHT);
-    ctx.fillRect(0, groundY, width, GRADIENT_HEIGHT);
-  }
-
-  // Noise texture
-  drawAsphaltTexture(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    groundY: number,
-    scroll: number
-  ) {
-    ctx.strokeStyle = "rgba(255,255,255,0.03)";
-    ctx.lineWidth = 1;
-
-    const spacing = 14;
-
-    for (let x = -200; x < width + 200; x += spacing) {
-      const offsetX = (x - scroll * 0.3) % width;
-      ctx.beginPath();
-      ctx.moveTo(offsetX, groundY + 10);
-      ctx.lineTo(offsetX + 30, groundY + 40);
-      ctx.stroke();
+        /* --------------------------------------------
+           GROUND BAND
+        -------------------------------------------- */
+        ctx.fillStyle = this.groundColor;
+        ctx.fillRect(0, groundY, w, this.groundHeight);
     }
-  }
-
-  // MAIN RENDER CALL
-  render(ctx: CanvasRenderingContext2D, physics: any) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-
-    const groundY = height * 0.92;
-
-    // update internal scroll
-    this.update(physics.speed, physics.dt || 0.016);
-
-    // asphalt base
-    this.drawAsphalt(ctx, width, height, groundY);
-
-    // highlight line
-    this.drawGroundHighlight(ctx, width, groundY);
-
-    // moving texture
-    this.drawAsphaltTexture(ctx, width, groundY, this.offset);
-  }
 }
