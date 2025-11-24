@@ -1,17 +1,16 @@
+// build/skate_game/rendering/BackgroundRenderer.ts
+
 export class BackgroundRenderer {
-    img: HTMLImageElement;
-
-    constructor() {
-        this.img = new Image();
-        this.img.src = "/invertfm/skate_game/sprites/game_background.png"; 
-    }
-
-    render(ctx: CanvasRenderingContext2D, scrollSpeed: number) {
-        if (!this.img.complete) return;
-
+    render(ctx: CanvasRenderingContext2D) {
         const w = ctx.canvas.width;
         const h = ctx.canvas.height;
 
-        ctx.drawImage(this.img, 0, 0, w, h);
+        // Smooth dark gradient background
+        const grd = ctx.createLinearGradient(0, 0, 0, h);
+        grd.addColorStop(0, "#050508");
+        grd.addColorStop(1, "#111115");
+
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, w, h);
     }
 }

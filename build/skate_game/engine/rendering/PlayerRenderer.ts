@@ -1,52 +1,58 @@
+// build/skate_game/rendering/PlayerRenderer.ts
+
 export class PlayerRenderer {
-    runFrames: HTMLImageElement[] = [];
-    pushFrames: HTMLImageElement[] = [];
-    idleFrame: HTMLImageElement;
+    private runFrames: HTMLImageElement[] = [];
+    private pushFrames: HTMLImageElement[] = [];
+    private currentFrameIndex = 0;
+    private frameTimer = 0;
+    private fps = 8;
+
+    private spriteWidth = 140;
+    private spriteHeight = 180;
 
     constructor() {
-        const base = "/invertfm/skate_game/sprites/";
-
-        // RUN (4 frames)
-        this.runFrames = [
-            this.load(base + "player_run_01.png"),
-            this.load(base + "player_run_02.png"),
-            this.load(base + "player_run_03.png"),
-            this.load(base + "player_run_04.png")
-        ];
-
-        // PUSH (2 frames)
-        this.pushFrames = [
-            this.load(base + "player_push_01.png"),
-            this.load(base + "player_push_02.png")
-        ];
-
-        // IDLE = run_01
-        this.idleFrame = this.load(base + "player_run_01.png");
-    }
-
-    load(src: string): HTMLImageElement {
-        const img = new Image();
-        img.src = src;
-        return img;
-    }
-
-    render(
-        ctx: CanvasRenderingContext2D,
-        player: any,
-        characterId: string,
-        mode: string,
-        frame: number
-    ) {
-        let img;
-
-        if (mode === "run") {
-            img = this.runFrames[frame % 4];
-        } else if (mode === "push") {
-            img = this.pushFrames[frame % 2];
-        } else {
-            img = this.idleFrame;
+        // Load RUN animation (4 frames)
+        for (let i = 1; i <= 4; i++) {
+            const img = new Image();
+            img.src = `/invertfm/skate_game/sprites/player_run_0${i}.png`;
+            this.runFrames.push(img);
         }
 
-        ctx.drawImage(img, player.x, player.y, player.width, player.height);
+        // Load PUSH animation (2 frames)
+        for (let i = 1; i <= 2; i++) {
+            const img = new Image();
+            img.src = `/invertfm/skate_game/sprites/player_push_0${i}.png`;
+            this.pushFrames.push(img);
+        }
+    }
+
+    setAnimationFps(newFps: number) {
+        this.fps = newFps;
+    }
+
+    render(ctx: CanvasRenderingContext2D, player: any, dt: number) {
+        const frames = player.state === "push" ? this.pushFrames : this.runFrames;
+        if (frames.length === 0) return;
+
+        // Animation timing
+        this.frameTimer += dt;
+        const frameDuration = 1000 / this.fps;
+
+        if (this.frameTimer >= frameDuration) {
+            this.frameTimer = 0;
+            this.currentFrameIndex = (this.currentFrameIndex + 1) % frames.length;
+        }
+
+        const frame = frames[this.currentFrameIndex];
+
+        if (!frame.complete) return;
+
+        ctx.drawImage(
+            frame,
+            player.x,
+            player.y,
+            this.spriteWidth,
+            this.spriteHeight
+        );
     }
 }
