@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import Carousel3D from "./Carousel3D";
 import CharacterPreview from "./CharacterPreview";
+import { CHARACTERS } from "./characters";
 
 import { GameLoop } from "./engine/game-loop";
 
@@ -24,13 +25,13 @@ export default function SkateGamePage() {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        // Correct canvas size
+        // Fullscreen canvas size
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        // Create game instance only ONCE
+        // Create the game loop once
         if (!gameRef.current) {
-            gameRef.current = new GameLoop(canvas);
+            gameRef.current = new GameLoop(canvas, selectedChar);
         }
 
         const handleResize = () => {
@@ -51,13 +52,20 @@ export default function SkateGamePage() {
        ============================================================================ */
     const startGame = () => {
         if (!gameRef.current) return;
+
         setGameStarted(true);
+
+        // Pass selected character into engine (if supported)
+        if (gameRef.current.setCharacter) {
+            gameRef.current.setCharacter(selectedChar);
+        }
+
         gameRef.current.resetGame?.();
         gameRef.current.start();
     };
 
     /* ============================================================================
-       CONTENT RENDER
+       CHARACTER SELECT SCREEN
        ============================================================================ */
     if (!gameStarted) {
         return (
@@ -69,45 +77,50 @@ export default function SkateGamePage() {
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
+                    justifyContent: "flex-start",
                     overflow: "hidden",
-                    color: "#fff"
+                    color: "#fff",
+                    paddingTop: "40px",
                 }}
             >
                 <h1
                     style={{
-                        marginBottom: "10px",
-                        fontSize: "2.2rem",
+                        marginBottom: "20px",
+                        fontSize: "2.4rem",
                         fontWeight: "bold",
-                        letterSpacing: "2px",
-                        textShadow: "0 0 10px rgba(255,255,255,0.5)"
+                        letterSpacing: "3px",
+                        textShadow: "0 0 12px rgba(255,255,255,0.6)",
                     }}
                 >
                     SELECT YOUR SKATER
                 </h1>
 
-                {/* 3D character carousel */}
+                {/* Character carousel */}
                 <Carousel3D
                     selected={selectedChar}
                     onSelect={(id) => setSelectedChar(id)}
                 />
 
-                {/* Large character preview */}
-                <CharacterPreview selected={selectedChar} />
+                {/* Preview below carousel */}
+                <div style={{ marginTop: "10px" }}>
+                    <CharacterPreview selected={selectedChar} />
+                </div>
 
-                {/* START BUTTON */}
+                {/* Start button */}
                 <button
                     onClick={startGame}
                     style={{
-                        marginTop: "30px",
-                        padding: "14px 26px",
-                        fontSize: "22px",
+                        marginTop: "28px",
+                        padding: "16px 32px",
+                        fontSize: "24px",
+                        fontWeight: "bold",
                         background: "#c52323",
                         border: "none",
-                        borderRadius: "12px",
+                        borderRadius: "14px",
                         color: "#fff",
                         cursor: "pointer",
-                        boxShadow: "0 0 10px rgba(255,0,0,0.4)"
+                        boxShadow: "0 0 14px rgba(255,0,0,0.5)",
+                        letterSpacing: "1px",
                     }}
                 >
                     START GAME
@@ -117,7 +130,7 @@ export default function SkateGamePage() {
     }
 
     /* ============================================================================
-       GAME RUNNING — SHOW CANVAS ONLY
+       GAME RUNNING
        ============================================================================ */
     return (
         <div
@@ -125,7 +138,7 @@ export default function SkateGamePage() {
                 width: "100%",
                 height: "100vh",
                 overflow: "hidden",
-                background: "#000"
+                background: "#000",
             }}
         >
             <canvas
@@ -134,7 +147,7 @@ export default function SkateGamePage() {
                     width: "100%",
                     height: "100%",
                     display: "block",
-                    background: "#000"
+                    background: "#000",
                 }}
             />
         </div>
