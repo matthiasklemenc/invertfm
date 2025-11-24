@@ -1,16 +1,10 @@
 /* ============================================================================
    3D CHARACTER CAROUSEL — INVERT FM SKATE GAME
-   Stable + responsive React component
+   Now uses the central CHARACTERS list.
    ============================================================================ */
 
 import React, { useState, useEffect } from "react";
-
-const characters = [
-    { id: "kai", name: "KAI", img: "/invertfm/skate_game/sprites/char_kai.png" },
-    { id: "mila", name: "MILA", img: "/invertfm/skate_game/sprites/char_mila.png" },
-    { id: "rex", name: "REX", img: "/invertfm/skate_game/sprites/char_rex.png" },
-    { id: "luna", name: "LUNA", img: "/invertfm/skate_game/sprites/char_luna.png" }
-];
+import { CHARACTERS } from "./characters";  // <-- NEW
 
 interface Props {
     onSelect: (id: string) => void;
@@ -19,23 +13,23 @@ interface Props {
 
 export default function Carousel3D({ onSelect, selected }: Props) {
     const [index, setIndex] = useState(
-        characters.findIndex(c => c.id === selected)
+        CHARACTERS.findIndex(c => c.id === selected)
     );
 
     useEffect(() => {
-        setIndex(characters.findIndex(c => c.id === selected));
+        setIndex(CHARACTERS.findIndex(c => c.id === selected));
     }, [selected]);
 
     const rotateLeft = () => {
-        const newIndex = (index - 1 + characters.length) % characters.length;
+        const newIndex = (index - 1 + CHARACTERS.length) % CHARACTERS.length;
         setIndex(newIndex);
-        onSelect(characters[newIndex].id);
+        onSelect(CHARACTERS[newIndex].id);
     };
 
     const rotateRight = () => {
-        const newIndex = (index + 1) % characters.length;
+        const newIndex = (index + 1) % CHARACTERS.length;
         setIndex(newIndex);
-        onSelect(characters[newIndex].id);
+        onSelect(CHARACTERS[newIndex].id);
     };
 
     return (
@@ -61,7 +55,7 @@ export default function Carousel3D({ onSelect, selected }: Props) {
                     transition: "transform 0.6s cubic-bezier(.25,.46,.45,.94)"
                 }}
             >
-                {characters.map((c, i) => {
+                {CHARACTERS.map((c, i) => {
                     const angle = i * 90;
                     return (
                         <img

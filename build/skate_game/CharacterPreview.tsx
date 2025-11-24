@@ -1,29 +1,17 @@
 /* ============================================================================
    CHARACTER PREVIEW — INVERT FM SKATE GAME
-   Displays the selected character in large preview form.
+   Now uses the central CHARACTERS list.
    ============================================================================ */
 
 import React from "react";
-
-interface CharInfo {
-    id: string;
-    name: string;
-    img: string;
-}
-
-const characters: CharInfo[] = [
-    { id: "kai", name: "KAI", img: "/invertfm/skate_game/sprites/char_kai.png" },
-    { id: "mila", name: "MILA", img: "/invertfm/skate_game/sprites/char_mila.png" },
-    { id: "rex", name: "REX", img: "/invertfm/skate_game/sprites/char_rex.png" },
-    { id: "luna", name: "LUNA", img: "/invertfm/skate_game/sprites/char_luna.png" }
-];
+import { CHARACTERS } from "./characters";  // <-- NEW
 
 interface Props {
     selected: string;
 }
 
 export default function CharacterPreview({ selected }: Props) {
-    const char = characters.find(c => c.id === selected);
+    const char = CHARACTERS.find(c => c.id === selected);
 
     if (!char) {
         return (
