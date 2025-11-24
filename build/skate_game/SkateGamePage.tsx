@@ -1,13 +1,10 @@
 /* ============================================================================
-   SKATE GAME PAGE — CLEAN START SCREEN WITH LOGO + SMALL CAROUSEL
+   SKATE GAME PAGE — CLEAN VERSION WITHOUT PREVIEW IMAGE
    ============================================================================ */
 
 import React, { useEffect, useRef, useState } from "react";
-
 import Carousel3D from "./Carousel3D";
-import CharacterPreview from "./CharacterPreview";
 import { CHARACTERS } from "./characters";
-
 import { GameLoop } from "./engine/game-loop";
 
 export default function SkateGamePage() {
@@ -28,35 +25,38 @@ export default function SkateGamePage() {
         canvas.height = window.innerHeight;
 
         if (!gameRef.current) {
+            // ALWAYS give a valid character to the engine
             gameRef.current = new GameLoop(canvas, selectedChar);
         }
 
-        const handleResize = () => {
-            if (!canvas) return;
+        const resizeHandler = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         };
+        window.addEventListener("resize", resizeHandler);
 
-        window.addEventListener("resize", handleResize);
-
-        return () => window.removeEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", resizeHandler);
     }, []);
 
     /* ============================================================================
-       START GAME
+       SAFE START GAME — FIXES BLANK SCREEN
        ============================================================================ */
-    const startGame = (characterID?: string) => {
-        const finalChar = characterID ?? selectedChar;
-
+    const startGame = (charId: string | null = null) => {
+        const finalChar = charId ?? selectedChar;
         setSelectedChar(finalChar);
+
+        // Switch screen immediately
         setGameStarted(true);
 
-        if (gameRef.current?.setCharacter) {
+        if (!gameRef.current) return;
+
+        // Make sure character is set BEFORE starting
+        if (gameRef.current.setCharacter) {
             gameRef.current.setCharacter(finalChar);
         }
 
-        gameRef.current?.resetGame?.();
-        gameRef.current?.start?.();
+        gameRef.current.resetGame?.();
+        gameRef.current.start?.();
     };
 
     /* ============================================================================
@@ -73,21 +73,18 @@ export default function SkateGamePage() {
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "flex-start",
-                    overflow: "hidden",
-                    color: "#fff",
                     paddingTop: "20px",
-                    textAlign: "center"
+                    color: "#fff",
+                    textAlign: "center",
+                    overflow: "hidden",
                 }}
             >
-
-                {/* GAME LOGO */}
+                {/* LOGO */}
                 <img
                     src="/invertfm/skate_game/sprites/game_logo.png"
-                    alt="Game Logo"
                     style={{
                         width: "230px",
-                        height: "auto",
-                        marginBottom: "10px",
+                        marginBottom: "12px",
                         filter: "drop-shadow(0 0 12px rgba(255,255,255,0.4))"
                     }}
                 />
@@ -98,39 +95,33 @@ export default function SkateGamePage() {
                         fontSize: "2rem",
                         fontWeight: "bold",
                         letterSpacing: "2px",
-                        textShadow: "0 0 10px rgba(255,255,255,0.5)"
+                        textShadow: "0 0 10px rgba(255,255,255,0.5)",
                     }}
                 >
                     SELECT YOUR SKATER
                 </h1>
 
-                {/* Smaller Carousel */}
+                {/* CAROUSEL — CLICK STARTS GAME */}
                 <Carousel3D
                     selected={selectedChar}
                     onSelect={(id) => setSelectedChar(id)}
                     onCharacterClick={(id) => startGame(id)}
                 />
 
-                {/* Character Preview */}
-                <div style={{ marginTop: "5px" }}>
-                    <CharacterPreview selected={selectedChar} />
-                </div>
-
-                {/* Start Game Button */}
+                {/* START BUTTON (OPTIONAL) */}
                 <button
                     onClick={() => startGame()}
                     style={{
-                        marginTop: "14px",
+                        marginTop: "25px",
                         padding: "14px 30px",
                         fontSize: "22px",
                         fontWeight: "bold",
                         background: "#c52323",
-                        border: "none",
                         borderRadius: "14px",
                         color: "#fff",
+                        border: "0",
                         cursor: "pointer",
                         boxShadow: "0 0 12px rgba(255,0,0,0.5)",
-                        letterSpacing: "1px"
                     }}
                 >
                     START GAME
@@ -140,14 +131,17 @@ export default function SkateGamePage() {
     }
 
     /* ============================================================================
-       GAME RUNNING
+       GAME CANVAS — ALWAYS SHOW IF gameStarted
        ============================================================================ */
     return (
-        <div style={{ width: "100%", height: "100vh", overflow: "hidden", background: "#000" }}>
-            <canvas
-                ref={canvasRef}
-                style={{ width: "100%", height: "100%", display: "block", background: "#000" }}
-            />
-        </div>
+        <canvas
+            ref={canvasRef}
+            style={{
+                width: "100vw",
+                height: "100vh",
+                display: "block",
+                background: "#000",
+            }}
+        />
     );
 }
