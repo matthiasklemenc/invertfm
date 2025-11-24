@@ -1,5 +1,5 @@
 /* ============================================================================
-   SKATE GAME PAGE — FINAL CLEAN VERSION
+   SKATE GAME PAGE — FINAL, WORKING VERSION
    ============================================================================ */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -15,7 +15,7 @@ export default function SkateGamePage() {
     const [gameStarted, setGameStarted] = useState(false);
 
     /* ============================================================================
-       INITIALIZE GAME LOOP
+       INITIAL SETUP — PREPARE CANVAS SIZE
        ============================================================================ */
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -24,31 +24,40 @@ export default function SkateGamePage() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        if (!gameRef.current) {
-            gameRef.current = new GameLoop(canvas, selectedChar);
-        }
-
         const resizeHandler = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         };
-        window.addEventListener("resize", resizeHandler);
 
+        window.addEventListener("resize", resizeHandler);
         return () => window.removeEventListener("resize", resizeHandler);
     }, []);
 
     /* ============================================================================
-       START GAME WHEN CLICKING A SKATER
+       START GAME — CLICK ON CHARACTER
        ============================================================================ */
     const startGame = (charId: string) => {
         setSelectedChar(charId);
         setGameStarted(true);
 
-        if (!gameRef.current) return;
+        // Delay to allow canvas to mount
+        setTimeout(() => {
+            const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
+            if (!canvas) {
+                console.error("Canvas not found!");
+                return;
+            }
 
-        gameRef.current.setCharacter?.(charId);
-        gameRef.current.resetGame?.();
-        gameRef.current.start?.();
+            // Create the game loop engine if not created
+            if (!gameRef.current) {
+                gameRef.current = new GameLoop(canvas, charId);
+            }
+
+            // Tell engine which character to use
+            gameRef.current.setCharacter(charId);
+            gameRef.current.resetGame();
+            gameRef.current.start();
+        }, 120);
     };
 
     /* ============================================================================
@@ -71,13 +80,13 @@ export default function SkateGamePage() {
                     overflow: "hidden",
                 }}
             >
-                {/* LOGO */}
+                {/* GAME LOGO */}
                 <img
                     src="/invertfm/skate_game/sprites/game_logo.png"
                     style={{
                         width: "230px",
                         marginBottom: "12px",
-                        filter: "drop-shadow(0 0 12px rgba(255,255,255,0.4))"
+                        filter: "drop-shadow(0 0 12px rgba(255,255,255,0.4))",
                     }}
                 />
 
@@ -104,10 +113,11 @@ export default function SkateGamePage() {
     }
 
     /* ============================================================================
-       GAME CANVAS
+       GAME CANVAS (FULLSCREEN)
        ============================================================================ */
     return (
         <canvas
+            id="game-canvas"
             ref={canvasRef}
             style={{
                 width: "100vw",
