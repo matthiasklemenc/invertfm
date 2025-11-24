@@ -12,10 +12,10 @@ interface CharInfo {
 }
 
 const characters: CharInfo[] = [
-    { id: "kai", name: "KAI", img: "/skate_game/assets/char_kai.png" },
-    { id: "mila", name: "MILA", img: "/skate_game/assets/char_mila.png" },
-    { id: "rex", name: "REX", img: "/skate_game/assets/char_rex.png" },
-    { id: "luna", name: "LUNA", img: "/skate_game/assets/char_luna.png" }
+    { id: "kai", name: "KAI", img: "/invertfm/skate_game/sprites/char_kai.png" },
+    { id: "mila", name: "MILA", img: "/invertfm/skate_game/sprites/char_mila.png" },
+    { id: "rex", name: "REX", img: "/invertfm/skate_game/sprites/char_rex.png" },
+    { id: "luna", name: "LUNA", img: "/invertfm/skate_game/sprites/char_luna.png" }
 ];
 
 interface Props {
