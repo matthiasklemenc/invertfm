@@ -1,32 +1,26 @@
-/* ============================================================================
-   GROUND RENDERER — INVERT FM SKATE GAME
-   Simple scrolling ground band (world moves left).
-   ============================================================================ */
-
 export class GroundRenderer {
-    groundColor = "#6a4f30";  // warm brown
-    edgeColor = "#4a3723";    // darker top edge
+    groundImg: HTMLImageElement;
 
-    groundHeight = 140;       // distance from bottom (matches game-loop)
+    constructor() {
+        this.groundImg = new Image();
+        this.groundImg.src = "/invertfm/skate_game/sprites/ground_texture.png";
+    }
 
-    constructor() {}
-
-    render(ctx: CanvasRenderingContext2D, player: any) {
+    render(ctx: CanvasRenderingContext2D, groundY: number) {
         const w = ctx.canvas.width;
-        const h = ctx.canvas.height;
+        const h = 200;
 
-        const groundY = h - this.groundHeight;
+        if (this.groundImg.complete) {
+            const pattern = ctx.createPattern(this.groundImg, "repeat");
+            if (pattern) {
+                ctx.fillStyle = pattern;
+                ctx.fillRect(0, groundY, w, h);
+                return;
+            }
+        }
 
-        /* --------------------------------------------
-           TOP EDGE
-        -------------------------------------------- */
-        ctx.fillStyle = this.edgeColor;
-        ctx.fillRect(0, groundY - 5, w, 5);
-
-        /* --------------------------------------------
-           GROUND BAND
-        -------------------------------------------- */
-        ctx.fillStyle = this.groundColor;
-        ctx.fillRect(0, groundY, w, this.groundHeight);
+        // fallback
+        ctx.fillStyle = "#333";
+        ctx.fillRect(0, groundY, w, h);
     }
 }

@@ -1,44 +1,17 @@
-/* ============================================================================
-   BACKGROUND RENDERER — INVERT FM SKATE GAME
-   Simple parallax sky + distant elements.
-   ============================================================================ */
-
 export class BackgroundRenderer {
-    skyColor = "#87CEEB";
-    groundColor = "#d8b796";
+    img: HTMLImageElement;
 
-    constructor() {}
+    constructor() {
+        this.img = new Image();
+        this.img.src = "/invertfm/skate_game/sprites/game_background.png"; 
+    }
 
-    render(ctx: CanvasRenderingContext2D, player: any) {
+    render(ctx: CanvasRenderingContext2D, scrollSpeed: number) {
+        if (!this.img.complete) return;
+
         const w = ctx.canvas.width;
         const h = ctx.canvas.height;
 
-        /* --------------------------------------------
-           SKY
-        -------------------------------------------- */
-        ctx.fillStyle = this.skyColor;
-        ctx.fillRect(0, 0, w, h);
-
-        /* --------------------------------------------
-           PARALLAX HILLS (simple sinus curves)
-        -------------------------------------------- */
-        ctx.fillStyle = "#2f7947";
-        const baseY = h - 250;
-
-        ctx.beginPath();
-        ctx.moveTo(0, baseY);
-
-        for (let x = 0; x <= w; x += 10) {
-            const y =
-                baseY +
-                Math.sin((x + player.x * 0.2) * 0.002) * 30 +
-                Math.cos((x - player.x * 0.1) * 0.003) * 20;
-            ctx.lineTo(x, y);
-        }
-
-        ctx.lineTo(w, h);
-        ctx.lineTo(0, h);
-        ctx.closePath();
-        ctx.fill();
+        ctx.drawImage(this.img, 0, 0, w, h);
     }
 }
