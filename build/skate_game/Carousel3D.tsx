@@ -1,17 +1,13 @@
-/* ============================================================================
-   3D CHARACTER CAROUSEL — INVERT FM SKATE GAME
-   Now uses the central CHARACTERS list.
-   ============================================================================ */
-
 import React, { useState, useEffect } from "react";
-import { CHARACTERS } from "./characters";  // <-- NEW
+import { CHARACTERS } from "./characters";
 
 interface Props {
     onSelect: (id: string) => void;
     selected: string;
+    onCharacterClick: (id: string) => void;
 }
 
-export default function Carousel3D({ onSelect, selected }: Props) {
+export default function Carousel3D({ onSelect, selected, onCharacterClick }: Props) {
     const [index, setIndex] = useState(
         CHARACTERS.findIndex(c => c.id === selected)
     );
@@ -36,24 +32,26 @@ export default function Carousel3D({ onSelect, selected }: Props) {
         <div
             style={{
                 width: "100%",
-                height: "260px",
+                height: "200px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
                 perspective: "900px",
-                marginTop: "20px"
+                marginTop: "10px",
             }}
         >
             <div
                 style={{
-                    width: "220px",
-                    height: "220px",
+                    width: "160px",
+                    height: "160px",
                     position: "relative",
                     transformStyle: "preserve-3d",
                     transform: `rotateY(${index * -90}deg)`,
-                    transition: "transform 0.6s cubic-bezier(.25,.46,.45,.94)"
+                    transition: "transform 0.6s cubic-bezier(.25,.46,.45,.94)",
+                    cursor: "pointer",
                 }}
+                onClick={() => onCharacterClick(CHARACTERS[index].id)}
             >
                 {CHARACTERS.map((c, i) => {
                     const angle = i * 90;
@@ -64,20 +62,20 @@ export default function Carousel3D({ onSelect, selected }: Props) {
                             alt={c.name}
                             style={{
                                 position: "absolute",
-                                width: "200px",
-                                height: "200px",
-                                top: "10px",
-                                left: "10px",
+                                width: "150px",
+                                height: "150px",
+                                top: "5px",
+                                left: "5px",
                                 objectFit: "contain",
                                 backfaceVisibility: "hidden",
-                                transform: `rotateY(${angle}deg) translateZ(320px)`
+                                transform: `rotateY(${angle}deg) translateZ(250px)`
                             }}
                         />
                     );
                 })}
             </div>
 
-            <div style={{ display: "flex", gap: "20px", marginTop: "15px" }}>
+            <div style={{ display: "flex", gap: "20px", marginTop: "10px" }}>
                 <button onClick={rotateLeft} style={btnStyle}>◀</button>
                 <button onClick={rotateRight} style={btnStyle}>▶</button>
             </div>
@@ -86,8 +84,8 @@ export default function Carousel3D({ onSelect, selected }: Props) {
 }
 
 const btnStyle: React.CSSProperties = {
-    padding: "10px 18px",
-    fontSize: "22px",
+    padding: "8px 14px",
+    fontSize: "20px",
     borderRadius: "8px",
     background: "#111",
     color: "#fff",

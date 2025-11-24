@@ -1,6 +1,5 @@
 /* ============================================================================
-   SKATE GAME PAGE — INVERT FM SKATE GAME
-   Main React component mounting the canvas and connecting to GameLoop engine.
+   SKATE GAME PAGE — CLEAN START SCREEN WITH LOGO + SMALL CAROUSEL
    ============================================================================ */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -19,17 +18,15 @@ export default function SkateGamePage() {
     const [gameStarted, setGameStarted] = useState(false);
 
     /* ============================================================================
-       INITIALIZE GAME LOOP (ONCE)
+       INITIALIZE GAME LOOP
        ============================================================================ */
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        // Fullscreen canvas size
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        // Create the game loop once
         if (!gameRef.current) {
             gameRef.current = new GameLoop(canvas, selectedChar);
         }
@@ -42,30 +39,28 @@ export default function SkateGamePage() {
 
         window.addEventListener("resize", handleResize);
 
-        return () => {
-            window.removeEventListener("resize", handleResize);
-        };
+        return () => window.removeEventListener("resize", handleResize);
     }, []);
 
     /* ============================================================================
        START GAME
        ============================================================================ */
-    const startGame = () => {
-        if (!gameRef.current) return;
+    const startGame = (characterID?: string) => {
+        const finalChar = characterID ?? selectedChar;
 
+        setSelectedChar(finalChar);
         setGameStarted(true);
 
-        // Pass selected character into engine (if supported)
-        if (gameRef.current.setCharacter) {
-            gameRef.current.setCharacter(selectedChar);
+        if (gameRef.current?.setCharacter) {
+            gameRef.current.setCharacter(finalChar);
         }
 
-        gameRef.current.resetGame?.();
-        gameRef.current.start();
+        gameRef.current?.resetGame?.();
+        gameRef.current?.start?.();
     };
 
     /* ============================================================================
-       CHARACTER SELECT SCREEN
+       START SCREEN
        ============================================================================ */
     if (!gameStarted) {
         return (
@@ -80,47 +75,62 @@ export default function SkateGamePage() {
                     justifyContent: "flex-start",
                     overflow: "hidden",
                     color: "#fff",
-                    paddingTop: "40px",
+                    paddingTop: "20px",
+                    textAlign: "center"
                 }}
             >
+
+                {/* GAME LOGO */}
+                <img
+                    src="/invertfm/skate_game/sprites/game_logo.png"
+                    alt="Game Logo"
+                    style={{
+                        width: "230px",
+                        height: "auto",
+                        marginBottom: "10px",
+                        filter: "drop-shadow(0 0 12px rgba(255,255,255,0.4))"
+                    }}
+                />
+
                 <h1
                     style={{
-                        marginBottom: "20px",
-                        fontSize: "2.4rem",
+                        marginBottom: "10px",
+                        fontSize: "2rem",
                         fontWeight: "bold",
-                        letterSpacing: "3px",
-                        textShadow: "0 0 12px rgba(255,255,255,0.6)",
+                        letterSpacing: "2px",
+                        textShadow: "0 0 10px rgba(255,255,255,0.5)"
                     }}
                 >
                     SELECT YOUR SKATER
                 </h1>
 
-                {/* Character carousel */}
+                {/* Smaller Carousel */}
                 <Carousel3D
                     selected={selectedChar}
                     onSelect={(id) => setSelectedChar(id)}
+                    onCharacterClick={(id) => startGame(id)}
                 />
 
-                {/* Preview below carousel */}
-                <div style={{ marginTop: "10px" }}>
+                {/* Character Preview */}
+                <div style={{ marginTop: "5px" }}>
                     <CharacterPreview selected={selectedChar} />
                 </div>
 
-                {/* Start button */}
+                {/* Start Game Button */}
                 <button
-                    onClick={startGame}
+                    onClick={() => startGame()}
                     style={{
-                        marginTop: "28px",
-                        padding: "16px 32px",
-                        fontSize: "24px",
+                        marginTop: "14px",
+                        padding: "14px 30px",
+                        fontSize: "22px",
                         fontWeight: "bold",
                         background: "#c52323",
                         border: "none",
                         borderRadius: "14px",
                         color: "#fff",
                         cursor: "pointer",
-                        boxShadow: "0 0 14px rgba(255,0,0,0.5)",
-                        letterSpacing: "1px",
+                        boxShadow: "0 0 12px rgba(255,0,0,0.5)",
+                        letterSpacing: "1px"
                     }}
                 >
                     START GAME
@@ -133,22 +143,10 @@ export default function SkateGamePage() {
        GAME RUNNING
        ============================================================================ */
     return (
-        <div
-            style={{
-                width: "100%",
-                height: "100vh",
-                overflow: "hidden",
-                background: "#000",
-            }}
-        >
+        <div style={{ width: "100%", height: "100vh", overflow: "hidden", background: "#000" }}>
             <canvas
                 ref={canvasRef}
-                style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "block",
-                    background: "#000",
-                }}
+                style={{ width: "100%", height: "100%", display: "block", background: "#000" }}
             />
         </div>
     );
