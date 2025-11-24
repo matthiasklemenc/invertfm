@@ -1,5 +1,5 @@
 /* ============================================================================
-   SKATE GAME PAGE — CLEAN VERSION WITHOUT PREVIEW IMAGE
+   SKATE GAME PAGE — FINAL CLEAN VERSION
    ============================================================================ */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -25,7 +25,6 @@ export default function SkateGamePage() {
         canvas.height = window.innerHeight;
 
         if (!gameRef.current) {
-            // ALWAYS give a valid character to the engine
             gameRef.current = new GameLoop(canvas, selectedChar);
         }
 
@@ -39,22 +38,15 @@ export default function SkateGamePage() {
     }, []);
 
     /* ============================================================================
-       SAFE START GAME — FIXES BLANK SCREEN
+       START GAME WHEN CLICKING A SKATER
        ============================================================================ */
-    const startGame = (charId: string | null = null) => {
-        const finalChar = charId ?? selectedChar;
-        setSelectedChar(finalChar);
-
-        // Switch screen immediately
+    const startGame = (charId: string) => {
+        setSelectedChar(charId);
         setGameStarted(true);
 
         if (!gameRef.current) return;
 
-        // Make sure character is set BEFORE starting
-        if (gameRef.current.setCharacter) {
-            gameRef.current.setCharacter(finalChar);
-        }
-
+        gameRef.current.setCharacter?.(charId);
         gameRef.current.resetGame?.();
         gameRef.current.start?.();
     };
@@ -107,31 +99,12 @@ export default function SkateGamePage() {
                     onSelect={(id) => setSelectedChar(id)}
                     onCharacterClick={(id) => startGame(id)}
                 />
-
-                {/* START BUTTON (OPTIONAL) */}
-                <button
-                    onClick={() => startGame()}
-                    style={{
-                        marginTop: "25px",
-                        padding: "14px 30px",
-                        fontSize: "22px",
-                        fontWeight: "bold",
-                        background: "#c52323",
-                        borderRadius: "14px",
-                        color: "#fff",
-                        border: "0",
-                        cursor: "pointer",
-                        boxShadow: "0 0 12px rgba(255,0,0,0.5)",
-                    }}
-                >
-                    START GAME
-                </button>
             </div>
         );
     }
 
     /* ============================================================================
-       GAME CANVAS — ALWAYS SHOW IF gameStarted
+       GAME CANVAS
        ============================================================================ */
     return (
         <canvas

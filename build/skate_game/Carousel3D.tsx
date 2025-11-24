@@ -32,7 +32,7 @@ export default function Carousel3D({ onSelect, selected, onCharacterClick }: Pro
         <div
             style={{
                 width: "100%",
-                height: "200px",
+                height: "220px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
